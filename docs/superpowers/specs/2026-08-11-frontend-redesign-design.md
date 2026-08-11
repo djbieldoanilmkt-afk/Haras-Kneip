@@ -113,13 +113,29 @@ Mapa direto do que existe hoje:
 | `components/sidebar.js` | `AppSidebar` | shadcn Sidebar |
 | `components/header.js` | `PageHeader` | |
 | `components/charts.js` | `Chart` | Recharts |
-| `components/timeline.js` | `Timeline` | |
-| `components/pedigreeTree.js` | `PedigreeTree` | componente próprio |
+| `components/pedigreeTree.js` | `PedigreeTree` | componente próprio; **quebrado hoje**, ver abaixo |
 | `components/voiceAssistant.js` | `VoiceAssistant` | **lógica portada como está** |
 
 O assistente de voz tem 414 linhas de lógica de reconhecimento de fala em cima da Web Speech API. Essa lógica é portada sem reescrita — apenas a casca visual muda. Reescrever o que funciona não serve ao objetivo deste trabalho.
 
 Estados de carregamento passam a usar o `Skeleton` do shadcn, substituindo os `<div class="skeleton">` com altura fixa chutada.
+
+### Código morto que não é portado
+
+Levantado durante o planejamento — nenhum destes é importado em lugar algum do app:
+
+- `components/timeline.js` inteiro (`renderTimeline`)
+- `initNascimentosChart` em `components/charts.js`
+- Seis funções de `utils/helpers.js`: `getStatusIcon`, `debounce`, `generateId`, `formatCurrency`, `capitalize`, `truncate`
+
+`utils/validators.js` também é código morto hoje, mas as quatro funções **são portadas e ligadas aos formulários**. Isso conclui algo que já estava escrito; não é funcionalidade nova.
+
+### Defeitos pré-existentes encontrados
+
+1. **A árvore genealógica não funciona.** `components/pedigreeTree.js` declara `renderPedigreeTree(genealogia, animaisMap)` e retorna uma string HTML, mas `pages/profile.js:177` chama com três argumentos, tratando o primeiro como container, e descarta o retorno. O port para React entrega a árvore funcionando pela primeira vez.
+2. **Os gráficos usam paleta de tema escuro sobre fundo claro.** `components/charts.js` fixa texto `#b8a892` e bordas `#1a1410`, sobra de um tema anterior.
+3. **O botão "Importar Dados (JSON)" não faz nada.** Não tem handler, e `store.importData` é um stub vazio. Passa a exibir um aviso de indisponibilidade em vez de um botão morto.
+4. **O modo lista do catálogo está quebrado.** `pages/catalog.js:268` aplica a classe `grid-1`, que não existe em nenhum CSS do projeto. O alternador grade/lista é removido em vez de portado.
 
 ## Páginas
 
@@ -131,7 +147,7 @@ Os vídeos em `assets/` (`splash-bg.mp4`, `plantel-bg*.mp4`) passam a ser fundo 
 
 ## Camada de dados
 
-O `js/store.js` vira `src/lib/store.ts`, tipado, com a mesma lógica de consulta. Sobre ele, hooks: `useAnimais`, `useAnimal`, `useStats`, `useEventos`, `useGenealogia`, `useSaudeRegistros`, `useReproducao`, `useAnotacoes`, `usePesagens`, `useConfiguracoes`.
+O `js/store.js` vira `src/lib/store.ts`, tipado, com a mesma lógica de consulta. O consumo nas páginas passa por um único hook genérico `useAsync(fn, deps)`, que entrega `data`, `loading`, `error` e `reload`. Um hook nomeado por método do store seria só um invólucro de uma linha sobre o mesmo hook — a versão genérica cobre os vinte métodos sem repetição.
 
 **Sem TanStack Query.** Para oito telas com leitura simples, ele adiciona conceito sem retorno proporcional.
 
@@ -170,7 +186,8 @@ Fases:
 - Novas funcionalidades ou páginas.
 - Reorganização da navegação ou da informação.
 - Reescrita da lógica do assistente de voz.
-- `store.importData` continua um stub, como está hoje. É uma lacuna pré-existente, não introduzida por este trabalho.
+- Importação de dados. `store.importData` é um stub vazio hoje; em vez de portar o botão morto, a tela passa a informar que o recurso não está disponível.
+- Migração das fotos em base64 para o Supabase Storage. `pages/animalForm.js` grava a imagem inteira como data URL na coluna `foto_url`, o que infla as linhas de `animais`. É uma lacuna pré-existente e o comportamento é portado como está.
 
 ## Riscos e consequências
 
