@@ -1,8 +1,17 @@
 # Dependencies
 node_modules/
 
+# Build
+dist/
+*.tsbuildinfo
+
+# Variaveis de ambiente
+.env
+.env.local
+
 # Brainstorming (visual companion)
 .superpowers/
+
 .DS_Store
 Thumbs.db
 *.log
