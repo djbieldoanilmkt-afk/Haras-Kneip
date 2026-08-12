@@ -33,7 +33,7 @@ Valem para toda animação deste documento, sem exceção.
 | Cards do plantel | Entrada escalonada, 30ms entre cards | 250ms cada |
 | Métricas do painel | Contador de 0 até o valor final | 800ms |
 | Gráficos | Recharts desenhando as séries | padrão da biblioteca |
-| Skeleton → conteúdo | Transição cruzada em vez de troca seca | 200ms |
+| Skeleton → conteúdo | Conteúdo entra com opacidade quando o carregamento termina | 250ms |
 
 ### Teto do escalonamento
 
@@ -43,13 +43,22 @@ O atraso acumula em no máximo **12 itens**. Com 30ms por card e 50 animais, o �
 
 Na página do plantel, marcar um animal como "incluído no link" altera o estado e re-renderiza a grade. Se a animação for disparada a cada render, a grade inteira re-anima a cada clique — irritante e, ironicamente, amador.
 
-A animação é ancorada na **montagem** do componente, não no render. Um item só anima quando entra na árvore. Trocar de filtro re-anima (correto: a lista mudou); alternar destaque não re-anima (correto: a lista é a mesma).
+A animação é ancorada na **montagem** do componente, não no render. Um item só anima quando entra na árvore do React.
+
+Como os cards são identificados pelo `id` do animal, o comportamento resultante é:
+
+- Alternar destaque: nenhum card re-anima. O nó do DOM é o mesmo.
+- Trocar de filtro: **apenas os cards que passam a existir** animam. Os que já estavam na tela permanecem parados.
+
+O segundo ponto corrige uma afirmação anterior deste documento, que dizia que trocar de filtro re-animaria a grade inteira. Não re-anima — e é melhor assim: card que continua na tela não deveria piscar só porque o vizinho saiu.
 
 ### Sem biblioteca de animação
 
 Framer Motion resolveria com menos código, mas custa cerca de 50 KB comprimidos. Todo o comportamento acima é alcançável com CSS e um hook de contador. A vitrine pública já carrega no celular de estranhos e não precisa desse peso.
 
 A consequência aceita: **não há animação de saída.** Sem `AnimatePresence`, elementos que somem somem imediatamente. Numa demo, ninguém repara na saída — repara na entrada.
+
+Isso vale também para o esqueleto de carregamento. Uma transição cruzada de verdade exigiria manter esqueleto e conteúdo na tela ao mesmo tempo, sobrepostos, o que só se faz bem com biblioteca de animação. O que fica é o esqueleto sumindo e o conteúdo entrando com opacidade — que é o que o olho registra de qualquer forma, já que o esqueleto é cinza liso.
 
 ## B · Árvore genealógica como peça de destaque
 
