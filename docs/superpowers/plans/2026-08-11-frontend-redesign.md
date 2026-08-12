@@ -22,6 +22,20 @@
 2. `js/components/charts.js:3-11` usa paleta de tema escuro (texto `#b8a892`, borda `#1a1410`) sobre fundo claro. A Tarefa 15 substitui por cores derivadas dos tokens.
 3. `js/pages/animalForm.js:167-175` grava fotos como data URL base64 na coluna `foto_url`. Isso infla as linhas da tabela `animais`. **Está fora do escopo deste plano** — o comportamento é portado como está.
 
+4. **O código legado grava em cinco colunas que não existem no banco.** Confirmado por introspecção em 2026-08-12. Isto invalida qualquer port que copie os nomes de campo do legado:
+
+| Tabela | Nome no código legado | Coluna real |
+|---|---|---|
+| `reproducao` | `tipo_evento` | `tipo` |
+| `reproducao` | `parceiro_nome` | `garanhao` |
+| `reproducao` | `previsao_parto` | `data_prevista_parto` |
+| `anotacoes` | `texto` | `conteudo` |
+| `anotacoes` | `autor` | *não existe* |
+
+Hoje, criar evento reprodutivo e criar anotação **falham** com erro 400, engolido por `console.error`. **Use sempre `src/lib/database.types.ts` como fonte de verdade dos nomes de coluna, nunca o arquivo legado.** O legado é fonte de verdade apenas para *comportamento de interface*.
+
+Decisão do dono do projeto, registrada na spec: as colunas populadas e hoje invisíveis passam a ser exibidas e editáveis — `reproducao.metodo`, `reproducao.resultado`, `reproducao.cria_id`, `saude_registros.custo` e `saude_registros.observacoes`. O formulário de anotação passa a ter Título e Conteúdo, sem Autor.
+
 **Código morto removido (não portar):** `js/components/timeline.js` inteiro, `initNascimentosChart` em `js/components/charts.js:126`, e de `js/utils/helpers.js` as funções `getStatusIcon`, `debounce`, `generateId`, `formatCurrency`, `capitalize`, `truncate`. Nenhuma é importada em lugar algum.
 
 **Validadores:** `js/utils/validators.js` também é código morto hoje, mas as quatro funções são portadas e **ligadas aos formulários** (Tarefas 7, 19 e 21). Isso conclui algo que já estava escrito, não adiciona funcionalidade nova.
@@ -2733,9 +2747,9 @@ Porte de `js/pages/profile.js`. **Comportamentos a preservar:**
 - Cinco abas: Informações, Genealogia, Saúde, Reprodução, Anotações (`profile.js:19-28`)
 - Aba Informações com tabela de detalhes e gráfico de peso, mais o diálogo de registrar pesagem (`profile.js:101-157`)
 - Aba Genealogia com árvore e diálogo de edição, listando machos como pai e fêmeas como mãe, excluindo o próprio animal (`profile.js:179-211`)
-- Aba Saúde com tabela e diálogo de novo registro, tipos exatamente como em `profile.js:255-262`
-- Aba Reprodução com tabela e diálogo, tipos exatamente como em `profile.js:328-335`
-- Aba Anotações com lista e diálogo, autor padrão "Administrador" (`profile.js:397`)
+- Aba Saúde com tabela e diálogo de novo registro, tipos exatamente como em `profile.js:255-262`, **mais as colunas Custo e Observações** (existem no banco, nunca foram exibidas)
+- Aba Reprodução com tabela e diálogo, tipos exatamente como em `profile.js:328-335`, gravando nas colunas reais `tipo`, `garanhao` e `data_prevista_parto`, **mais Método, Resultado e Cria**
+- Aba Anotações com lista e diálogo, com campos **Título e Conteúdo** — sem Autor, que não existe no banco
 - Excluir animal com confirmação, redirecionando para `/catalogo` (`profile.js:86-92`)
 
 **O que muda:** `window.switchTab` global e `window.confirm` de `profile.js:87` saem; abas viram estado do React e a confirmação vira `Dialog` do shadcn. Cada diálogo passa a validar com `validateSaude`, `validateReproducao` e `validateEvento` antes de gravar.

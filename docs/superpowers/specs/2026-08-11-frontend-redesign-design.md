@@ -136,6 +136,39 @@ Levantado durante o planejamento — nenhum destes é importado em lugar algum d
 2. **Os gráficos usam paleta de tema escuro sobre fundo claro.** `components/charts.js` fixa texto `#b8a892` e bordas `#1a1410`, sobra de um tema anterior.
 3. **O botão "Importar Dados (JSON)" não faz nada.** Não tem handler, e `store.importData` é um stub vazio. Passa a exibir um aviso de indisponibilidade em vez de um botão morto.
 4. **O modo lista do catálogo está quebrado.** `pages/catalog.js:268` aplica a classe `grid-1`, que não existe em nenhum CSS do projeto. O alternador grade/lista é removido em vez de portado.
+5. **O app grava em cinco colunas que não existem.** Ver seção abaixo — é o defeito mais sério dos cinco.
+
+### Divergência entre o código e o schema real
+
+Levantado por introspecção do banco em 2026-08-12, via API REST com a chave `anon`.
+
+| Tabela | O código legado usa | Coluna real |
+|---|---|---|
+| `reproducao` | `tipo_evento` | `tipo` |
+| `reproducao` | `parceiro_nome` | `garanhao` |
+| `reproducao` | `previsao_parto` | `data_prevista_parto` |
+| `anotacoes` | `texto` | `conteudo` |
+| `anotacoes` | `autor` | *não existe* |
+
+Consequências em produção hoje:
+
+- **Aba Reprodução:** criar evento falha com erro 400 do PostgREST, engolido por `console.error`. A tabela mostra "--" nas colunas Evento, Garanhão e Previsão Parto. Existem 4 registros no banco que o app não consegue exibir.
+- **Aba Anotações:** criar anotação falha pelo mesmo motivo. As 3 anotações existentes aparecem em branco.
+
+**O port usa o schema real, não os nomes do código legado.** Portar os nomes errados entregaria as duas abas quebradas de novo, com conhecimento do defeito.
+
+### Colunas com dados que o app nunca exibiu
+
+A mesma introspecção revelou colunas populadas e invisíveis na interface: `reproducao.metodo`, `reproducao.resultado`, `reproducao.cria_id`, `saude_registros.custo` e `saude_registros.observacoes`.
+
+**Decisão do dono do projeto:** exibir e permitir editar. A aba Reprodução ganha Método, Resultado e Cria; a aba Saúde ganha Custo e Observações. Não são campos novos no banco — são campos que já existem e hoje só podem ser alimentados por fora do sistema.
+
+O formulário de anotação passa a ter **Título e Conteúdo**, que é o que o banco guarda. O campo Autor sai: nunca foi persistido, e mantê-lo seria simular uma gravação que não acontece.
+
+### Colunas do banco deliberadamente não usadas
+
+- `eventos.cor` — o calendário usa os tokens do tema, para funcionar nos dois modos. Uma cor fixa gravada no banco não se adapta ao tema escuro.
+- `updated_at` em todas as tabelas — mantido pelo banco, sem uso na interface.
 
 ## Páginas
 
