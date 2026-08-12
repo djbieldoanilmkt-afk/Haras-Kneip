@@ -1,0 +1,13 @@
+# As rotas do app usam hash (#/catalogo), entao o servidor so precisa entregar
+# o index.html da raiz. Nao ha regra de rewrite aqui de proposito.
+#
+# As variaveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY precisam estar
+# definidas em Site settings > Environment variables ANTES do build: o Vite as
+# embute no bundle, entao adiciona-las depois exige um novo deploy.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

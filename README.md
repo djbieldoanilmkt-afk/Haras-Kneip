@@ -16,6 +16,27 @@ npm run dev
 **O projeto passou a ter etapa de build.** Não basta mais copiar a pasta para o
 servidor.
 
+### Vercel ou Netlify
+
+As duas plataformas detectam o Vite sozinhas, e os arquivos `vercel.json` e
+`netlify.toml` já fixam o comando de build e a pasta de saída.
+
+O passo que **não** é automático são as variáveis de ambiente. Antes do primeiro
+deploy, defina no painel do projeto:
+
+| Variável | Onde encontrar |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API (chave `anon`) |
+
+O Vite embute essas variáveis no bundle durante o build. Adicioná-las depois
+**não** corrige um deploy já publicado — é preciso rodar o deploy de novo.
+
+Se elas faltarem, o site mostra uma tela explicando o que está faltando, em vez
+de uma página em branco.
+
+### Publicação manual
+
 ```bash
 npm run build
 ```
