@@ -73,7 +73,10 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none", className)}
+      // O Base UI mantem os paineis ja visitados montados e marca os inativos
+      // com `inert`, mas nao os esconde visualmente. Sem esta regra todos os
+      // paineis visitados aparecem empilhados na tela ao mesmo tempo.
+      className={cn("flex-1 text-sm outline-none [&[inert]]:hidden", className)}
       {...props}
     />
   )
