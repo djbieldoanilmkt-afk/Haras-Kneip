@@ -26,7 +26,7 @@ export function StatCard({
       {highlight && <span className="bg-primary absolute inset-y-0 left-0 w-0.5" />}
       <div
         className={cn(
-          'numero-animado text-2xl font-bold tracking-tight',
+          'numero-animado font-heading text-3xl font-extrabold tracking-tight',
           highlight && 'text-primary',
         )}
       >

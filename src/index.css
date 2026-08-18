@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/bricolage-grotesque/wght.css";
+@import "@fontsource-variable/manrope/wght.css";
 @import "@fontsource/playfair-display/latin-600.css";
 @import "@fontsource/playfair-display/latin-700.css";
 
@@ -91,7 +92,8 @@
   --color-status-cobertura: var(--status-cobertura);
   --color-status-potro: var(--status-potro);
 
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
   --font-brand: "Playfair Display", ui-serif, Georgia, serif;
 
   --radius-sm: calc(var(--radius) - 2px);
@@ -112,13 +114,18 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-size: 0.875rem;
     line-height: 1.5;
+    /* Manrope variavel em 450: corpo visivelmente mais cheio que o peso 400,
+       sem chegar ao medium dos rotulos. font-weight direto, e nao
+       font-variation-settings — este ultimo herda e atropelaria o peso dos
+       titulos. */
+    font-weight: 450;
   }
 
   h1,
   h2,
   h3,
   h4 {
-    @apply text-foreground font-semibold tracking-tight;
+    @apply text-foreground font-heading font-bold tracking-tight;
   }
 }
 
