@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { AppSidebar } from './AppSidebar'
@@ -7,6 +7,7 @@ import { Topbar } from './Topbar'
 import { CommandPalette, useCommandPalette } from './CommandPalette'
 
 export function AppShell() {
+  const { pathname } = useLocation()
   const { open, setOpen } = useCommandPalette()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -26,7 +27,11 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenSearch={() => setOpen(true)} onOpenMenu={() => setMenuOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto max-w-7xl">
+          {/*
+            A key remonta este contêiner a cada rota, o que reinicia a animação
+            CSS. Sem ela a entrada só rodaria na primeira carga da página.
+          */}
+          <div key={pathname} className="animar-entrada mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>

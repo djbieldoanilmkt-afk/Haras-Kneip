@@ -98,6 +98,9 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 8px);
+
+  /* Desacelera rapido e lembra fisica real. Curva unica de todo o sistema. */
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
@@ -116,5 +119,85 @@
   h3,
   h4 {
     @apply text-foreground font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  @keyframes entrar {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes tracar {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes tracar-vertical {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  /* Entrada padrao. O atraso do escalonamento vem por style inline. */
+  .animar-entrada {
+    animation: entrar 250ms var(--ease-saida) both;
+  }
+
+  /* Revelacao ao rolar: comeca escondido e recebe .revelado pelo observer. */
+  .revelar {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 400ms var(--ease-saida),
+      transform 400ms var(--ease-saida);
+  }
+
+  .revelar.revelado {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Sem isto cada digito tem largura propria e o numero treme ao subir. */
+  .numero-animado {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+  Principio 1 da spec: quem pediu menos movimento no sistema operacional
+  recebe a versao estatica. Esta regra cobre animacao e transicao
+  declarativas; o que e dirigido por JavaScript usa o hook useReducedMotion.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    /* Sem zerar o atraso, o escalonamento viraria conteudo pipocando em
+       sequencia — atrasado e instantaneo ao mesmo tempo. */
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  .revelar {
+    opacity: 1;
+    transform: none;
   }
 }

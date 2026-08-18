@@ -194,9 +194,21 @@ export default function Catalogo() {
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visiveis.map((a) => (
-            <AnimalCard
+          {visiveis.map((a, i) => (
+            /*
+              A key fica aqui, no wrapper. Como ela e o id do animal, alternar
+              o destaque mantem o mesmo no do DOM e a animacao nao reinicia —
+              sem isso a grade inteira re-animaria a cada clique.
+
+              Teto de 12: com 30ms por card e 50 animais, o ultimo apareceria
+              1,5s depois do primeiro.
+            */
+            <div
               key={a.id}
+              className="animar-entrada"
+              style={{ animationDelay: `${Math.min(i, 11) * 30}ms` }}
+            >
+            <AnimalCard
               animal={a}
               linhagem={linhagemPorAnimal[a.id]}
               footer={
@@ -213,6 +225,7 @@ export default function Catalogo() {
                 </div>
               }
             />
+            </div>
           ))}
         </div>
       )}
