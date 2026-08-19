@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Menu, Plus, Search } from 'lucide-react'
+import { LogOut, Menu, Plus, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { supabase } from '@/lib/supabase'
 import { ThemeToggle } from './ThemeToggle'
 
 export function Topbar({
@@ -42,6 +43,14 @@ export function Topbar({
         <Button size="sm" nativeButton={false} render={<Link to="/novo-animal" />}>
           <Plus className="size-4" />
           <span className="hidden sm:inline">Novo animal</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Sair da conta"
+          onClick={() => supabase.auth.signOut()}
+        >
+          <LogOut className="size-4" />
         </Button>
       </div>
     </header>

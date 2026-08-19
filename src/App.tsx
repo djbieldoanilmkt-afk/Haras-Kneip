@@ -1,17 +1,20 @@
-import { Suspense, lazy } from 'react'
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { Suspense, lazy, useEffect } from 'react'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Toaster } from '@/components/ui/sonner'
-import { AppShell } from '@/components/layout/AppShell'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AppShell } from '@/components/layout/AppShell'
+import { RequireHaras, RequireSession } from '@/components/auth/guards'
+import { supabase } from '@/lib/supabase'
 
-/**
- * Páginas carregadas sob demanda.
- *
- * Sem isso o bundle fica em um pedaço só de ~1,2 MB, e quem abre apenas a
- * vitrine pública baixa também todo o sistema administrativo, incluindo os
- * gráficos e o assistente de voz.
- */
+const Landing = lazy(() => import('@/pages/Landing'))
+const Entrar = lazy(() => import('@/pages/auth/Entrar'))
+const CriarConta = lazy(() => import('@/pages/auth/CriarConta'))
+const RecuperarSenha = lazy(() => import('@/pages/auth/RecuperarSenha'))
+const NovaSenha = lazy(() => import('@/pages/auth/NovaSenha'))
+const CriarHaras = lazy(() => import('@/pages/auth/CriarHaras'))
+const Assinar = lazy(() => import('@/pages/auth/Assinar'))
+
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Catalogo = lazy(() => import('@/pages/Catalogo'))
 const Perfil = lazy(() => import('@/pages/Perfil'))
@@ -23,7 +26,7 @@ const PlantelPublico = lazy(() => import('@/pages/PlantelPublico'))
 
 function Carregando() {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-6">
       <Skeleton className="h-9 w-56 rounded-lg" />
       <Skeleton className="h-64 rounded-lg" />
     </div>
@@ -31,33 +34,65 @@ function Carregando() {
 }
 
 /**
- * Rotas em modo hash, idênticas às do js/router.js legado. Manter o hash
- * preserva os links já compartilhados (#/plantel, #/animal/:id) e dispensa
- * regra de rewrite no servidor que publica o site.
+ * O link de recuperação de senha entra pelo evento do Auth, não por rota —
+ * o Supabase devolve o usuário com uma sessão temporária e cabe ao app
+ * levá-lo à tela de nova senha.
  */
+function RedirecionarRecuperacao() {
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((evento) => {
+      if (evento === 'PASSWORD_RECOVERY') {
+        window.location.hash = '#/nova-senha'
+      }
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <HashRouter>
+      <RedirecionarRecuperacao />
       <Suspense fallback={<Carregando />}>
         <Routes>
-          <Route path="/plantel" element={<PlantelPublico />} />
+          {/* público */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/entrar" element={<Entrar />} />
+          <Route path="/criar-conta" element={<CriarConta />} />
+          <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+          <Route path="/plantel/:slug" element={<PlantelPublico />} />
+          {/* links antigos do Kneip compartilhados no WhatsApp continuam valendo */}
+          <Route path="/plantel" element={<Navigate to="/plantel/haras-kneip" replace />} />
 
-          <Route element={<AppShell />}>
-            <Route index element={<Dashboard />} />
-            <Route path="/catalogo" element={<Catalogo />} />
-            <Route path="/animal/:id" element={<Perfil />} />
-            <Route path="/novo-animal" element={<AnimalForm />} />
-            <Route path="/editar-animal/:id" element={<AnimalForm />} />
-            <Route path="/calendario" element={<Calendario />} />
-            <Route path="/relatorios" element={<Relatorios />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
-            <Route
-              path="*"
-              element={
-                <p className="text-muted-foreground py-16 text-center">Página não encontrada.</p>
-              }
-            />
+          {/* exige login */}
+          <Route element={<RequireSession />}>
+            <Route path="/nova-senha" element={<NovaSenha />} />
+            <Route path="/criar-haras" element={<CriarHaras />} />
+
+            {/* exige haras e conta utilizável */}
+            <Route element={<RequireHaras />}>
+              <Route path="/assinar" element={<Assinar />} />
+
+              <Route element={<AppShell />}>
+                <Route path="/painel" element={<Dashboard />} />
+                <Route path="/catalogo" element={<Catalogo />} />
+                <Route path="/animal/:id" element={<Perfil />} />
+                <Route path="/novo-animal" element={<AnimalForm />} />
+                <Route path="/editar-animal/:id" element={<AnimalForm />} />
+                <Route path="/calendario" element={<Calendario />} />
+                <Route path="/relatorios" element={<Relatorios />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+              </Route>
+            </Route>
           </Route>
+
+          <Route
+            path="*"
+            element={
+              <p className="text-muted-foreground py-16 text-center">Página não encontrada.</p>
+            }
+          />
         </Routes>
       </Suspense>
 

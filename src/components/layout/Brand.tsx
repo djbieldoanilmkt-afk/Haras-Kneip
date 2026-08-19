@@ -1,23 +1,33 @@
 import { cn } from '@/lib/utils'
+import { iniciais } from '@/components/AnimalCard'
 
 /**
- * Marca do sistema: monograma HK em bloco sólido, nome em serifada.
- *
- * Substitui o emoji 🐴 que o app legado usava como logo. A serifada aparece
- * apenas aqui — no resto da interface tudo é Inter, o que transforma a marca
- * em assinatura em vez de ruído tipográfico.
+ * Marca do haras logado: logo enviada pela conta ou monograma com as
+ * iniciais do nome. A serifada aparece apenas aqui — assinatura, não ruído.
  */
-export function Brand({ className }: { className?: string }) {
+export function Brand({
+  nome,
+  logoUrl,
+  className,
+}: {
+  nome: string
+  logoUrl?: string | null
+  className?: string
+}) {
   return (
-    <div className={cn('flex items-center gap-2.5', className)}>
-      <div className="bg-primary text-primary-foreground font-brand flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
-        HK
-      </div>
-      <div className="font-brand text-sm leading-tight font-semibold">
-        Haras
-        <br />
-        Kneip
-      </div>
+    <div className={cn('flex min-w-0 items-center gap-2.5', className)}>
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          className="size-8 shrink-0 rounded-lg object-cover"
+        />
+      ) : (
+        <div className="bg-primary text-primary-foreground font-brand flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
+          {iniciais(nome)}
+        </div>
+      )}
+      <div className="font-brand truncate text-sm leading-tight font-semibold">{nome}</div>
     </div>
   )
 }

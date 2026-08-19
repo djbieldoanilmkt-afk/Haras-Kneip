@@ -15,6 +15,26 @@
 
 export type Sexo = 'Fêmea' | 'Macho'
 
+export type StatusConta = 'trial' | 'ativa' | 'bloqueada'
+
+/** O tenant: cada conta do produto é um haras. */
+export type Haras = {
+  id: string
+  nome: string
+  slug: string
+  logo_url: string | null
+  status_conta: StatusConta
+  trial_expira_em: string
+  created_at: string
+}
+
+export type Membro = {
+  haras_id: string
+  user_id: string
+  papel: 'dono'
+  created_at: string
+}
+
 export type Animal = {
   id: string
   nome: string

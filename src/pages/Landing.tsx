@@ -1,0 +1,151 @@
+import type { ReactNode } from 'react'
+import { Link, Navigate } from 'react-router-dom'
+import {
+  BarChart3,
+  CalendarCheck,
+  GitBranch,
+  Share2,
+  ShieldCheck,
+  Smartphone,
+} from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { useSession } from '@/hooks/useSession'
+import { useRevelarAoRolar } from '@/hooks/useRevelarAoRolar'
+import { PRODUTO } from '@/lib/produto'
+import { cn } from '@/lib/utils'
+
+function Revelavel({ children, atraso = 0 }: { children: ReactNode; atraso?: number }) {
+  const { ref, revelado } = useRevelarAoRolar<HTMLDivElement>()
+  return (
+    <div
+      ref={ref}
+      className={cn('revelar', revelado && 'revelado')}
+      style={{ transitionDelay: `${atraso}ms` }}
+    >
+      {children}
+    </div>
+  )
+}
+
+const FUNCIONALIDADES = [
+  {
+    icone: GitBranch,
+    titulo: 'Genealogia visual',
+    texto: 'Árvore de pedigree em três gerações, com foto e navegação entre ancestrais.',
+  },
+  {
+    icone: Share2,
+    titulo: 'Vitrine pública',
+    texto: 'Um link com seus animais à venda, pronto para mandar no WhatsApp — genealogia inclusa.',
+  },
+  {
+    icone: CalendarCheck,
+    titulo: 'Calendário do plantel',
+    texto: 'Vacinação, vermifugação, partos previstos e ferração num lugar só, com alertas no painel.',
+  },
+  {
+    icone: BarChart3,
+    titulo: 'Relatórios',
+    texto: 'Distribuição por pelagem, idade e status reprodutivo, com exportação em CSV.',
+  },
+  {
+    icone: ShieldCheck,
+    titulo: 'Registros de saúde e reprodução',
+    texto: 'Histórico completo por animal: exames, coberturas, gestações, pesagens e anotações.',
+  },
+  {
+    icone: Smartphone,
+    titulo: 'Funciona no celular',
+    texto: 'Cadastre no curral, consulte na pista. Tema claro e escuro.',
+  },
+] as const
+
+/** Landing pública do produto. Quem já está logado vai direto ao painel. */
+export default function Landing() {
+  const { session, carregando } = useSession()
+
+  if (!carregando && session) return <Navigate to="/painel" replace />
+
+  return (
+    <div className="bg-[#FBFBFC] text-[#14161A]">
+      <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+        <span className="font-brand text-primary text-xl font-bold">{PRODUTO.nome}</span>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/entrar" />}>
+            Entrar
+          </Button>
+          <Button size="sm" nativeButton={false} render={<Link to="/criar-conta" />}>
+            Criar conta
+          </Button>
+        </div>
+      </header>
+
+      <section className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl bg-[#14201A] px-6 py-20 text-center">
+        <video
+          src="assets/plantel-bg.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="pointer-events-none absolute inset-0 size-full object-cover opacity-35"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#14201A]/50 to-[#14201A]/95" />
+
+        <div className="relative">
+          <h1 className="font-heading mx-auto max-w-2xl text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+            {PRODUTO.tagline}
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-white/80">
+            Plantel, genealogia, sanidade, reprodução e uma vitrine pública para vender — feito
+            para criadores, não para contadores.
+          </p>
+          <div className="mt-8 flex justify-center gap-3">
+            <Button size="lg" nativeButton={false} render={<Link to="/criar-conta" />}>
+              Testar grátis por {PRODUTO.trialDias} dias
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-white/60">Sem cartão de crédito no teste.</p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 py-16">
+        <h2 className="font-heading text-center text-2xl font-extrabold tracking-tight">
+          O que vem dentro
+        </h2>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FUNCIONALIDADES.map((f, i) => (
+            <Revelavel key={f.titulo} atraso={(i % 3) * 80}>
+              <div className="h-full rounded-xl border border-black/8 bg-white p-5 shadow-sm">
+                <f.icone className="text-primary size-6" />
+                <h3 className="font-heading mt-3 text-base font-bold">{f.titulo}</h3>
+                <p className="mt-1.5 text-sm text-[#6B7280]">{f.texto}</p>
+              </div>
+            </Revelavel>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 pb-16">
+        <Revelavel>
+          <div className="rounded-2xl border border-black/8 bg-white p-10 text-center shadow-sm">
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight">
+              Comece hoje, com o plantel que você já tem
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm text-[#6B7280]">
+              Crie a conta, cadastre os primeiros animais e mande o link da vitrine no grupo de
+              criadores ainda esta semana.
+            </p>
+            <Button className="mt-6" size="lg" nativeButton={false} render={<Link to="/criar-conta" />}>
+              Criar conta grátis
+            </Button>
+          </div>
+        </Revelavel>
+      </section>
+
+      <footer className="mx-auto max-w-5xl border-t border-black/8 px-4 py-6 text-center text-xs text-[#868C96]">
+        {PRODUTO.nome} © {new Date().getFullYear()}
+      </footer>
+    </div>
+  )
+}
