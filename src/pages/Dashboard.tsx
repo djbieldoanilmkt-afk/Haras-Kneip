@@ -76,7 +76,9 @@ export default function Dashboard() {
           {carregandoAnimais ? (
             <Skeleton className="h-[280px] rounded-lg" />
           ) : (
-            <PelagemChart data={contar((animais ?? []).map((a) => a.pelagem))} />
+            <div className="animar-entrada">
+              <PelagemChart data={contar((animais ?? []).map((a) => a.pelagem))} />
+            </div>
           )}
         </Card>
 
@@ -85,7 +87,9 @@ export default function Dashboard() {
           {carregandoAnimais ? (
             <Skeleton className="h-[280px] rounded-lg" />
           ) : (
-            <StatusChart data={contar((animais ?? []).map((a) => a.status_reprodutivo))} />
+            <div className="animar-entrada">
+              <StatusChart data={contar((animais ?? []).map((a) => a.status_reprodutivo))} />
+            </div>
           )}
         </Card>
       </div>

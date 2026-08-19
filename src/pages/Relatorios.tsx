@@ -123,7 +123,9 @@ export default function Relatorios() {
           {loading ? (
             <Skeleton className="h-[280px] rounded-lg" />
           ) : (
-            <PelagemChart data={contar(lista.map((a) => a.pelagem))} />
+            <div className="animar-entrada">
+              <PelagemChart data={contar(lista.map((a) => a.pelagem))} />
+            </div>
           )}
         </Card>
 
@@ -132,7 +134,9 @@ export default function Relatorios() {
           {loading ? (
             <Skeleton className="h-[280px] rounded-lg" />
           ) : (
-            <StatusChart data={contar(lista.map((a) => a.status_reprodutivo))} />
+            <div className="animar-entrada">
+              <StatusChart data={contar(lista.map((a) => a.status_reprodutivo))} />
+            </div>
           )}
         </Card>
 
@@ -141,7 +145,9 @@ export default function Relatorios() {
           {loading ? (
             <Skeleton className="h-[280px] rounded-lg" />
           ) : (
-            <IdadeChart data={resumo.idades} />
+            <div className="animar-entrada">
+              <IdadeChart data={resumo.idades} />
+            </div>
           )}
         </Card>
       </div>

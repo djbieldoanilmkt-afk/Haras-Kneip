@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { StatusBadge } from '@/components/StatusBadge'
 import { iniciais } from '@/components/AnimalCard'
@@ -10,8 +10,10 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAsync } from '@/hooks/useAsync'
+import { useRevelarAoRolar } from '@/hooks/useRevelarAoRolar'
 import { store } from '@/lib/store'
 import { calcularIdade } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { Animal } from '@/lib/database.types'
 
 const PLAYLIST = [
@@ -19,6 +21,25 @@ const PLAYLIST = [
   'assets/plantel-bg-2.mp4',
   'assets/plantel-bg-3.mp4',
 ]
+
+/**
+ * Revela o card quando ele entra na tela ao rolar — o único lugar do app onde
+ * scroll-trigger cabe: grade longa, lida de cima a baixo, quase sempre no
+ * celular. Revela uma vez só; rolar de volta não desfaz.
+ */
+function CardRevelavel({ children, atraso }: { children: ReactNode; atraso: number }) {
+  const { ref, revelado } = useRevelarAoRolar<HTMLDivElement>()
+
+  return (
+    <div
+      ref={ref}
+      className={cn('revelar', revelado && 'revelado')}
+      style={{ transitionDelay: `${atraso}ms` }}
+    >
+      {children}
+    </div>
+  )
+}
 
 /**
  * Vitrine pública do plantel.
@@ -106,14 +127,17 @@ export default function PlantelPublico() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {animais.map((a) => {
+            {animais.map((a, i) => {
               const linhagem = linhagens[a.id]
               return (
+                /* i % 3: o atraso escalona por posicao na linha da grade — o
+                   quarto card abre uma linha nova e entra junto com o primeiro
+                   dela, nao 240ms depois. */
+                <CardRevelavel key={a.id} atraso={(i % 3) * 80}>
                 <button
-                  key={a.id}
                   type="button"
                   onClick={() => setSelecionado(a)}
-                  className="overflow-hidden rounded-xl border border-black/8 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                  className="w-full overflow-hidden rounded-xl border border-black/8 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
                 >
                   <div className="relative h-44 bg-[#EEF0F3]">
                     {a.foto_url ? (
@@ -154,6 +178,7 @@ export default function PlantelPublico() {
                     )}
                   </div>
                 </button>
+                </CardRevelavel>
               )
             })}
           </div>
