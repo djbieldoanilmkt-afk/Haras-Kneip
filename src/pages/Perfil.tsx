@@ -183,12 +183,11 @@ function AbaGenealogia({ animal }: { animal: Animal }) {
   const mapa = data?.[1] ?? {}
   const todos = data?.[2] ?? []
 
-  const nomes = Object.fromEntries(Object.entries(mapa).map(([id, a]) => [id, a.nome]))
   const machos = todos.filter((a) => a.sexo === 'Macho' && a.id !== animal.id)
   const femeas = todos.filter((a) => a.sexo === 'Fêmea' && a.id !== animal.id)
 
   const DESCONHECIDO = 'Desconhecido'
-  const nomeDe = (id: string | null) => (id && nomes[id]) || DESCONHECIDO
+  const nomeDe = (id: string | null) => (id && mapa[id]?.nome) || DESCONHECIDO
   const idDe = (lista: Animal[], nome: string) => lista.find((a) => a.nome === nome)?.id ?? null
 
   function abrir() {
@@ -231,7 +230,12 @@ function AbaGenealogia({ animal }: { animal: Animal }) {
       {loading ? (
         <Skeleton className="h-56 rounded-lg" />
       ) : (
-        <PedigreeTree genealogia={genealogia} nomes={nomes} animalNome={animal.nome} />
+        <PedigreeTree
+          genealogia={genealogia}
+          ancestrais={mapa}
+          animalNome={animal.nome}
+          animalFoto={animal.foto_url}
+        />
       )}
 
       <Dialog open={aberto} onOpenChange={setAberto}>

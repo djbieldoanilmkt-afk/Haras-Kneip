@@ -1,33 +1,76 @@
 import { Link } from 'react-router-dom'
 
 import type { Genealogia } from '@/lib/database.types'
+import { iniciais } from './AnimalCard'
+import { cn } from '@/lib/utils'
 
-type Nomes = Record<string, string>
+type Ancestral = { nome: string; foto_url: string | null }
+type Ancestrais = Record<string, Ancestral>
 
-/**
- * Árvore genealógica em três colunas: animal, pais, avós.
- *
- * Esta é a primeira versão que funciona. O componente legado
- * (js/components/pedigreeTree.js) declarava `renderPedigreeTree(genealogia,
- * animaisMap)` e devolvia uma string HTML, mas js/pages/profile.js:177 chamava
- * com três argumentos, tratando o primeiro como container, e descartava o
- * retorno — então a árvore nunca aparecia na tela.
- */
-function Box({ id, label, nomes }: { id: string | null; label: string; nomes: Nomes }) {
-  const nome = id ? nomes[id] : undefined
-  const conhecido = Boolean(nome)
+function Miniatura({ ancestral }: { ancestral: Ancestral | null }) {
+  return (
+    <div className="bg-secondary text-primary font-brand flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md text-[11px] font-bold">
+      {ancestral?.foto_url ? (
+        <img src={ancestral.foto_url} alt="" className="size-full object-cover" />
+      ) : (
+        iniciais(ancestral?.nome ?? null)
+      )}
+    </div>
+  )
+}
 
-  const conteudo = (
+function Conteudo({ ancestral, rotulo }: { ancestral: Ancestral | null; rotulo: string }) {
+  return (
     <>
-      <div className="text-muted-foreground text-[11px] tracking-wide uppercase">{label}</div>
-      <div className="mt-1 truncate text-sm font-medium">{nome ?? 'Desconhecido'}</div>
+      <Miniatura ancestral={ancestral} />
+      <div className="min-w-0">
+        <div className="text-muted-foreground text-[10px] tracking-wide uppercase">{rotulo}</div>
+        <div className="truncate text-xs font-semibold">{ancestral?.nome ?? 'Desconhecido'}</div>
+      </div>
+    </>
+  )
+}
+
+function No({
+  id,
+  rotulo,
+  ancestrais,
+  className,
+  atraso,
+  chave,
+  stub,
+}: {
+  id: string | null
+  rotulo: string
+  ancestrais: Ancestrais
+  className?: string
+  atraso: number
+  /** Este nó liga um par de filhos à direita (pai/mãe ligando os avós). */
+  chave?: boolean
+  /** Este nó emite um ramo pela direita até a chave seguinte. */
+  stub?: boolean
+}) {
+  const ancestral = id ? (ancestrais[id] ?? null) : null
+  const estilo = { animationDelay: `${atraso}ms` }
+
+  const classes = cn(
+    'pedigree-no animar-entrada',
+    chave && 'pedigree-chave',
+    !ancestral && 'text-muted-foreground border-dashed',
+    className,
+  )
+
+  const filhos = (
+    <>
+      <Conteudo ancestral={ancestral} rotulo={rotulo} />
+      {stub && <span className="pedigree-stub" aria-hidden />}
     </>
   )
 
-  if (!conhecido || !id) {
+  if (!ancestral || !id) {
     return (
-      <div className="border-border bg-card text-muted-foreground w-40 shrink-0 rounded-lg border border-dashed p-2.5 text-center">
-        {conteudo}
+      <div className={classes} data-ramo style={estilo}>
+        {filhos}
       </div>
     )
   }
@@ -35,21 +78,33 @@ function Box({ id, label, nomes }: { id: string | null; label: string; nomes: No
   return (
     <Link
       to={`/animal/${id}`}
-      className="border-border bg-card hover:border-primary hover:bg-accent w-40 shrink-0 rounded-lg border p-2.5 text-center transition-colors"
+      className={cn(classes, 'hover:border-primary hover:bg-accent transition-colors')}
+      data-ramo
+      style={estilo}
     >
-      {conteudo}
+      {filhos}
     </Link>
   )
 }
 
+/**
+ * Árvore genealógica em três gerações, com conectores no formato de chave de
+ * pedigree impresso. As caixas entram em três ondas — animal, pais, avós — e
+ * as linhas se desenham junto com a onda que as recebe.
+ *
+ * Primeira versão funcional: o componente legado devolvia uma string HTML
+ * enquanto o chamador passava um container, e a árvore nunca aparecia.
+ */
 export function PedigreeTree({
   genealogia,
-  nomes,
+  ancestrais,
   animalNome,
+  animalFoto,
 }: {
   genealogia: Genealogia | null
-  nomes: Nomes
+  ancestrais: Ancestrais
   animalNome: string
+  animalFoto?: string | null
 }) {
   if (!genealogia) {
     return (
@@ -60,24 +115,66 @@ export function PedigreeTree({
   }
 
   return (
-    <div className="flex items-center gap-6 overflow-x-auto p-2">
-      <div className="flex flex-col justify-center">
-        <div className="border-primary bg-card w-40 shrink-0 rounded-lg border-2 p-2.5 text-center">
-          <div className="text-muted-foreground text-[11px] tracking-wide uppercase">Animal</div>
-          <div className="mt-1 truncate text-sm font-semibold">{animalNome}</div>
+    <div className="overflow-x-auto p-2">
+      <div className="pedigree">
+        <div
+          className="pedigree-no pedigree-chave-animal animar-entrada border-primary col-start-1 row-span-4 row-start-1 self-center border-2"
+          style={{ animationDelay: '0ms' }}
+        >
+          <Conteudo
+            ancestral={{ nome: animalNome, foto_url: animalFoto ?? null }}
+            rotulo="Animal"
+          />
+          <span className="pedigree-stub" aria-hidden />
         </div>
-      </div>
 
-      <div className="flex flex-col gap-8">
-        <Box id={genealogia.pai_id} label="Pai" nomes={nomes} />
-        <Box id={genealogia.mae_id} label="Mãe" nomes={nomes} />
-      </div>
+        <No
+          id={genealogia.pai_id}
+          rotulo="Pai"
+          ancestrais={ancestrais}
+          className="col-start-2 row-span-2 row-start-1 self-center"
+          atraso={120}
+          chave
+          stub
+        />
+        <No
+          id={genealogia.mae_id}
+          rotulo="Mãe"
+          ancestrais={ancestrais}
+          className="col-start-2 row-span-2 row-start-3 self-center"
+          atraso={120}
+          chave
+          stub
+        />
 
-      <div className="flex flex-col gap-3">
-        <Box id={genealogia.avo_paterno_id} label="Avô paterno" nomes={nomes} />
-        <Box id={genealogia.avo_paterna_id} label="Avó paterna" nomes={nomes} />
-        <Box id={genealogia.avo_materno_id} label="Avô materno" nomes={nomes} />
-        <Box id={genealogia.avo_materna_id} label="Avó materna" nomes={nomes} />
+        <No
+          id={genealogia.avo_paterno_id}
+          rotulo="Avô paterno"
+          ancestrais={ancestrais}
+          className="col-start-3 row-start-1"
+          atraso={240}
+        />
+        <No
+          id={genealogia.avo_paterna_id}
+          rotulo="Avó paterna"
+          ancestrais={ancestrais}
+          className="col-start-3 row-start-2"
+          atraso={240}
+        />
+        <No
+          id={genealogia.avo_materno_id}
+          rotulo="Avô materno"
+          ancestrais={ancestrais}
+          className="col-start-3 row-start-3"
+          atraso={240}
+        />
+        <No
+          id={genealogia.avo_materna_id}
+          rotulo="Avó materna"
+          ancestrais={ancestrais}
+          className="col-start-3 row-start-4"
+          atraso={240}
+        />
       </div>
     </div>
   )

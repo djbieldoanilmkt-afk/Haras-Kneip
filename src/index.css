@@ -184,6 +184,107 @@
   }
 }
 
+@layer components {
+  /*
+    Arvore genealogica. A forma e fixa — 1 animal, 2 pais, 4 avos — entao os
+    conectores sao bordas posicionadas por calc() sobre linhas de altura fixa,
+    sem medir o DOM: redimensionar a janela, mudar o zoom ou carregar a fonte
+    depois nao desalinha nada.
+
+    Geometria: todo no tem altura --linha e se centraliza no seu row-span. O
+    centro do par de filhos fica a vao/2 alem das bordas do no pai (caso
+    pai/mae -> avos) ou a linha/2 + vao (caso animal -> pais, que abrange
+    quatro linhas). As chaves verticais usam exatamente esses alcances.
+  */
+  .pedigree {
+    --linha: 3.5rem;
+    --vao: 0.5rem;
+    --ramo: 1.5rem;
+
+    display: grid;
+    grid-template-columns: repeat(3, minmax(9.5rem, 11rem));
+    grid-auto-rows: var(--linha);
+    column-gap: var(--ramo);
+    row-gap: var(--vao);
+    /* Respiro para as chaves que se estendem alem da primeira/ultima linha. */
+    padding-block: calc(var(--vao) * 2);
+  }
+
+  .pedigree-no {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: var(--linha);
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  /* Ramo horizontal entrando pela esquerda (pais e avos). */
+  .pedigree-no[data-ramo]::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--ramo) * -1);
+    top: 50%;
+    width: var(--ramo);
+    height: 1px;
+    background: var(--border);
+    transform: scaleX(0);
+    transform-origin: right;
+    animation: tracar 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /*
+    Ramo saindo pela direita, em elemento real: os dois pseudo-elementos do no
+    ja estao ocupados pelo ramo esquerdo e pela chave.
+  */
+  .pedigree-stub {
+    position: absolute;
+    right: calc(var(--ramo) * -1);
+    top: 50%;
+    width: var(--ramo);
+    height: 1px;
+    background: var(--border);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: tracar 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /* Chave vertical no meio do vao, ligando pai/mae aos dois avos. */
+  .pedigree-chave::after {
+    content: '';
+    position: absolute;
+    right: calc(var(--ramo) / -2);
+    top: calc(var(--vao) / -2);
+    bottom: calc(var(--vao) / -2);
+    width: 1px;
+    background: var(--border);
+    transform: scaleY(0);
+    transform-origin: center;
+    animation: tracar-vertical 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /* Chave do animal, que abrange as quatro linhas ate os centros de pai e mae. */
+  .pedigree-chave-animal::after {
+    content: '';
+    position: absolute;
+    right: calc(var(--ramo) / -2);
+    top: calc((var(--linha) / 2 + var(--vao)) * -1);
+    bottom: calc((var(--linha) / 2 + var(--vao)) * -1);
+    width: 1px;
+    background: var(--border);
+    transform: scaleY(0);
+    transform-origin: center;
+    animation: tracar-vertical 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+}
+
 /*
   Principio 1 da spec: quem pediu menos movimento no sistema operacional
   recebe a versao estatica. Esta regra cobre animacao e transicao
