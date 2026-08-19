@@ -174,4 +174,18 @@ grant update (nome, logo_url) on public.haras to authenticated;
 
 revoke insert, update, delete on public.membros from anon, authenticated;
 
+-- Escrita anonima morre no GRANT, nao so na politica: sem isto o PostgREST
+-- devolveria "200, zero linhas" para um UPDATE anonimo em vez de recusar.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'animais','genealogia','saude_registros','reproducao',
+    'anotacoes','eventos','pesagens','configuracoes'
+  ] loop
+    execute format('revoke insert, update, delete on public.%I from anon', t);
+  end loop;
+end $$;
+
 commit;
