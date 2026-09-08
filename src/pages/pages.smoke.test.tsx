@@ -30,8 +30,21 @@ const ANIMAL = vi.hoisted(() => ({
   updated_at: null,
 }))
 
+const HARAS = vi.hoisted(() => ({
+  id: 'h1',
+  nome: 'Haras Kneip',
+  slug: 'haras-kneip',
+  logo_url: null,
+  status_conta: 'ativa' as const,
+  trial_expira_em: '2099-01-01T00:00:00Z',
+  created_at: '2026-01-01T00:00:00Z',
+}))
+
 vi.mock('@/lib/store', () => ({
   store: {
+    meuHarasId: vi.fn().mockResolvedValue('h1'),
+    getHarasPorSlug: vi.fn().mockResolvedValue(HARAS),
+    getVitrine: vi.fn().mockResolvedValue({ animais: [], genealogias: [] }),
     getAnimais: vi.fn().mockResolvedValue([]),
     getAnimal: vi.fn().mockResolvedValue(ANIMAL),
     getAllGenealogias: vi.fn().mockResolvedValue([]),
@@ -54,6 +67,7 @@ vi.mock('@/lib/store', () => ({
   },
 }))
 
+import { TenantProvider } from '@/hooks/tenant'
 import Dashboard from './Dashboard'
 import Catalogo from './Catalogo'
 import Perfil from './Perfil'
@@ -114,13 +128,27 @@ describe('smoke de renderizacao das paginas', () => {
   })
 
   it('Configuracoes', async () => {
-    renderPage(<Configuracoes />)
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
     await waitFor(() => expect(screen.getByText('Informações do Haras')).toBeInTheDocument())
     expect(screen.getByText(/Ainda não disponível/)).toBeInTheDocument()
   })
 
-  it('Plantel publico roda sem o shell', async () => {
-    renderPage(<PlantelPublico />, { path: '/plantel', route: '/plantel' })
+  it('Configuracoes mostra a identidade e o endereco da vitrine', async () => {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('Identidade do haras')).toBeInTheDocument())
+    expect(screen.getByLabelText('Endereço da vitrine')).toHaveValue('haras-kneip')
+  })
+
+  it('Plantel publico roda sem o shell, pelo slug da URL', async () => {
+    renderPage(<PlantelPublico />, { path: '/plantel/:slug', route: '/plantel/haras-kneip' })
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Haras Kneip' })).toBeInTheDocument(),
     )

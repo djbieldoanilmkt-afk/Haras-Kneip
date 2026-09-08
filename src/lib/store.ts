@@ -17,6 +17,7 @@ import type {
   Evento,
   Genealogia,
   GenealogiaResumo,
+  Haras,
   Pesagem,
   Reproducao,
   SaudeRegistro,
@@ -118,6 +119,48 @@ export const store = {
       .select()
     if (error) throw error
     return (data ?? []) as Animal[]
+  },
+
+  // --------------------------------------------------------------- vitrine
+
+  /** Haras pelo slug da URL pública. Null quando não existe ou está bloqueado. */
+  async getHarasPorSlug(slug: string): Promise<Haras | null> {
+    const { data, error } = await supabase
+      .from('haras')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle()
+    if (error) throw error
+    return (data as Haras | null) ?? null
+  },
+
+  /**
+   * Animais em destaque de UM haras. O RLS já limita a contas ativas, mas o
+   * filtro explícito é o que impede a vitrine de um haras exibir animais de
+   * outro assim que existir mais de um tenant.
+   */
+  async getVitrine(harasId: string): Promise<{
+    animais: Animal[]
+    genealogias: GenealogiaResumo[]
+  }> {
+    const [animais, genealogias] = await Promise.all([
+      supabase
+        .from('animais')
+        .select('*')
+        .eq('haras_id', harasId)
+        .eq('em_destaque', true)
+        .eq('ativo', true)
+        .order('nome'),
+      supabase.from('genealogia').select('animal_id, pai_id, mae_id').eq('haras_id', harasId),
+    ])
+
+    if (animais.error) throw animais.error
+    if (genealogias.error) throw genealogias.error
+
+    return {
+      animais: (animais.data ?? []) as Animal[],
+      genealogias: (genealogias.data ?? []) as GenealogiaResumo[],
+    }
   },
 
   async getAnimaisMap(): Promise<Record<string, AnimalResumo>> {
@@ -292,8 +335,21 @@ export const store = {
   },
 
   async saveConfiguracao(chave: string, valor: string): Promise<void> {
-    const { error } = await supabase.from('configuracoes').upsert({ chave, valor })
+    // onConflict explicito: a unicidade agora e (haras_id, chave), nao (chave).
+    // Sem isto o upsert nao encontra a linha existente e falha por duplicidade.
+    const harasId = await this.meuHarasId()
+    const { error } = await supabase
+      .from('configuracoes')
+      .upsert({ haras_id: harasId, chave, valor }, { onConflict: 'haras_id,chave' })
     if (error) throw error
+  },
+
+  /** Haras da sessão atual, resolvido pelo vínculo em `membros`. */
+  async meuHarasId(): Promise<string> {
+    const { data, error } = await supabase.from('membros').select('haras_id').maybeSingle()
+    if (error) throw error
+    if (!data) throw new Error('Sua conta não está vinculada a nenhum haras.')
+    return (data as { haras_id: string }).haras_id
   },
 
   // ---------------------------------------------------------------- export

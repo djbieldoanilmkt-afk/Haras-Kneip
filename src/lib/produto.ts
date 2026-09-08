@@ -1,13 +1,12 @@
 /**
  * Identidade do produto (não do haras do usuário).
  *
- * O nome é PROVISÓRIO por decisão do dono do projeto em 2026-08-13 — quando o
- * definitivo for escolhido, trocar aqui reflete em landing, telas de
- * autenticação e título da aba. Não escrever o nome literal em nenhum outro
- * arquivo.
+ * Nome definido em 2026-09-08. Centralizado aqui de propósito: landing,
+ * telas de autenticação e título da aba leem daqui. Não escrever o nome
+ * literal em nenhum outro arquivo.
  */
 export const PRODUTO = {
-  nome: 'Plantel',
+  nome: 'HarasPro',
   tagline: 'Gestão de haras sem planilha',
   trialDias: 15,
 } as const
