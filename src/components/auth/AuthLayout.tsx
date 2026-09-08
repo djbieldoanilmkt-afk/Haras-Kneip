@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { MarcaProduto } from '@/components/MarcaProduto'
-import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { PainelVideo } from './PainelVideo'
 import { PRODUTO } from '@/lib/produto'
 
 /**
@@ -26,25 +26,9 @@ const PROVAS = [
 ] as const
 
 function PainelVisual() {
-  const menosMovimento = useReducedMotion()
-  const [semVideo, setSemVideo] = useState(false)
-
   return (
     <div className="relative hidden overflow-hidden bg-[#14201A] lg:block">
-      {!semVideo && !menosMovimento && (
-        <video
-          src="assets/haras-drone.webm"
-          poster="assets/haras-drone-poster.webp"
-          autoPlay
-          muted
-          loop
-          playsInline
-          // Sem o arquivo, o painel continua elegante: fica o fundo escuro da
-          // marca com o texto por cima, sem buraco nem ícone de mídia quebrada.
-          onError={() => setSemVideo(true)}
-          className="absolute inset-0 size-full object-cover"
-        />
-      )}
+      <PainelVideo />
 
       <div className="absolute inset-0 bg-gradient-to-t from-[#0C1611] via-[#0C1611]/55 to-[#0C1611]/25" />
 
