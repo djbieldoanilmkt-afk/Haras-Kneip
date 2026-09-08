@@ -73,6 +73,7 @@ export default function CriarConta() {
   return (
     <AuthLayout
       titulo="Criar conta"
+      descricao={`Comece com ${PRODUTO.trialDias} dias grátis. Sem cartão de crédito.`}
       rodape={
         <>
           Já tem conta?{' '}

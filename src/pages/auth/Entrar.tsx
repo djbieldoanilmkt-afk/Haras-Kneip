@@ -35,7 +35,8 @@ export default function Entrar() {
 
   return (
     <AuthLayout
-      titulo="Entrar"
+      titulo="Bem-vindo de volta"
+      descricao="Entre para acessar o painel do seu haras."
       rodape={
         <>
           Ainda não tem conta?{' '}
