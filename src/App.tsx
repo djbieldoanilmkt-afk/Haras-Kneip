@@ -8,6 +8,8 @@ import { RequireHaras, RequireSession } from '@/components/auth/guards'
 import { supabase } from '@/lib/supabase'
 
 const Landing = lazy(() => import('@/pages/Landing'))
+const Privacidade = lazy(() => import('@/pages/legal/Privacidade'))
+const Termos = lazy(() => import('@/pages/legal/Termos'))
 const Entrar = lazy(() => import('@/pages/auth/Entrar'))
 const CriarConta = lazy(() => import('@/pages/auth/CriarConta'))
 const RecuperarSenha = lazy(() => import('@/pages/auth/RecuperarSenha'))
@@ -62,6 +64,8 @@ export default function App() {
           <Route path="/criar-conta" element={<CriarConta />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/plantel/:slug" element={<PlantelPublico />} />
+          <Route path="/privacidade" element={<Privacidade />} />
+          <Route path="/termos" element={<Termos />} />
           {/* links antigos do Kneip compartilhados no WhatsApp continuam valendo */}
           <Route path="/plantel" element={<Navigate to="/plantel/haras-kneip" replace />} />
 

@@ -14,7 +14,12 @@ import { MarcaProduto } from '@/components/MarcaProduto'
 import { VideoCavalo } from '@/components/landing/VideoCavalo'
 import { SecaoGenealogia } from '@/components/landing/SecaoGenealogia'
 import { SecaoWhatsApp } from '@/components/landing/SecaoWhatsApp'
+import { SecaoVitrine } from '@/components/landing/SecaoVitrine'
+import { SecaoApp } from '@/components/landing/SecaoApp'
+import { SecaoPrecos } from '@/components/landing/SecaoPrecos'
+import { SecaoFAQ } from '@/components/landing/SecaoFAQ'
 import { ContadorReal } from '@/components/landing/ContadorReal'
+import { Rodape } from '@/components/landing/Rodape'
 import { useSession } from '@/hooks/useSession'
 import { useRevelarAoRolar } from '@/hooks/useRevelarAoRolar'
 import { PRODUTO } from '@/lib/produto'
@@ -152,7 +157,11 @@ export default function Landing() {
       </div>
 
       <SecaoGenealogia />
+      <SecaoApp />
+      <SecaoVitrine />
       <SecaoWhatsApp />
+      <SecaoPrecos />
+      <SecaoFAQ />
 
       <section className="mx-auto max-w-5xl px-4 py-16">
         <Revelavel>
@@ -184,9 +193,7 @@ export default function Landing() {
         </Revelavel>
       </section>
 
-      <footer className="mx-auto max-w-5xl border-t border-black/8 px-4 py-6 text-center text-xs text-[#868C96]">
-        {PRODUTO.nome} © {new Date().getFullYear()}
-      </footer>
+      <Rodape />
     </div>
   )
 }
