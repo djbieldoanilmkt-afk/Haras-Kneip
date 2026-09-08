@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import {
   BarChart3,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { MarcaProduto } from '@/components/MarcaProduto'
 import { useSession } from '@/hooks/useSession'
 import { useRevelarAoRolar } from '@/hooks/useRevelarAoRolar'
 import { PRODUTO } from '@/lib/produto'
@@ -65,12 +66,23 @@ const FUNCIONALIDADES = [
 export default function Landing() {
   const { session, carregando } = useSession()
 
+  // Pagina publica de marketing: fundo claro fixo, como a vitrine. A
+  // preferencia de tema do administrador nao vale para quem chega de fora.
+  useEffect(() => {
+    const raiz = document.documentElement
+    const tinhaDark = raiz.classList.contains('dark')
+    raiz.classList.remove('dark')
+    return () => {
+      if (tinhaDark) raiz.classList.add('dark')
+    }
+  }, [])
+
   if (!carregando && session) return <Navigate to="/painel" replace />
 
   return (
     <div className="bg-[#FBFBFC] text-[#14161A]">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-        <span className="font-brand text-primary text-xl font-bold">{PRODUTO.nome}</span>
+        <MarcaProduto tom="sobre-claro" className="h-8" />
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/entrar" />}>
             Entrar

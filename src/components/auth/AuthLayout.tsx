@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import { PRODUTO } from '@/lib/produto'
+import { MarcaProduto } from '@/components/MarcaProduto'
 import { Card } from '@/components/ui/card'
 
 /** Moldura das telas de autenticação: marca do PRODUTO, não de um haras. */
@@ -17,8 +17,8 @@ export function AuthLayout({
   return (
     <div className="bg-background grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm">
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-          <span className="font-brand text-primary text-2xl font-bold">{PRODUTO.nome}</span>
+        <Link to="/" className="mb-6 flex items-center justify-center">
+          <MarcaProduto className="h-9" />
         </Link>
 
         <Card className="p-6">
