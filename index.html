@@ -16,8 +16,10 @@
       Sem isto o link compartilhado aparece como texto cru — e o WhatsApp é o
       principal canal de distribuição deste produto.
 
-      TROQUE o domínio abaixo pelo endereço real depois de publicar: os
-      robôs exigem URL absoluta e ignoram caminho relativo.
+      VITE_SITE_URL precisa ser o endereço absoluto do site, SEM barra no
+      final (ex.: https://haraspro.vercel.app). Os robôs de rede social
+      exigem URL absoluta e ignoram caminho relativo — sem essa variável o
+      cartão aparece sem imagem.
     -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="HarasPro" />
@@ -27,8 +29,8 @@
       property="og:description"
       content="Plantel, genealogia, sanidade, reprodução e uma vitrine pública para vender seus animais. Teste grátis por 15 dias."
     />
-    <meta property="og:url" content="https://haraspro.com.br/" />
-    <meta property="og:image" content="https://haraspro.com.br/marca/og-haraspro.jpg" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/marca/og-haraspro.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="HarasPro — gestão de haras sem planilha" />
@@ -39,7 +41,7 @@
       name="twitter:description"
       content="Plantel, genealogia, sanidade, reprodução e uma vitrine pública. Teste grátis por 15 dias."
     />
-    <meta name="twitter:image" content="https://haraspro.com.br/marca/og-haraspro.jpg" />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/marca/og-haraspro.jpg" />
 
     <link rel="icon" type="image/png" sizes="32x32" href="./marca/icone-32.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="./marca/icone-512.png" />
