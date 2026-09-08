@@ -11,6 +11,9 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { MarcaProduto } from '@/components/MarcaProduto'
+import { SecaoGenealogia } from '@/components/landing/SecaoGenealogia'
+import { SecaoWhatsApp } from '@/components/landing/SecaoWhatsApp'
+import { ContadorReal } from '@/components/landing/ContadorReal'
 import { useSession } from '@/hooks/useSession'
 import { useRevelarAoRolar } from '@/hooks/useRevelarAoRolar'
 import { PRODUTO } from '@/lib/produto'
@@ -138,7 +141,11 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 pb-16">
+      <ContadorReal />
+      <SecaoGenealogia />
+      <SecaoWhatsApp />
+
+      <section className="mx-auto max-w-5xl px-4 py-16">
         <Revelavel>
           <div className="rounded-2xl border border-black/8 bg-white p-10 text-center shadow-sm">
             <h2 className="font-heading text-2xl font-extrabold tracking-tight">

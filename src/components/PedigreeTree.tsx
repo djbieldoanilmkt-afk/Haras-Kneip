@@ -39,6 +39,7 @@ function No({
   atraso,
   chave,
   stub,
+  semLinks,
 }: {
   id: string | null
   rotulo: string
@@ -49,6 +50,8 @@ function No({
   chave?: boolean
   /** Este nó emite um ramo pela direita até a chave seguinte. */
   stub?: boolean
+  /** Demonstração na landing: os nós viram estáticos, sem navegação. */
+  semLinks?: boolean
 }) {
   const ancestral = id ? (ancestrais[id] ?? null) : null
   const estilo = { animationDelay: `${atraso}ms` }
@@ -67,7 +70,7 @@ function No({
     </>
   )
 
-  if (!ancestral || !id) {
+  if (!ancestral || !id || semLinks) {
     return (
       <div className={classes} data-ramo style={estilo}>
         {filhos}
@@ -100,11 +103,14 @@ export function PedigreeTree({
   ancestrais,
   animalNome,
   animalFoto,
+  semLinks,
 }: {
   genealogia: Genealogia | null
   ancestrais: Ancestrais
   animalNome: string
   animalFoto?: string | null
+  /** Demonstração na landing: sem navegação para perfis protegidos. */
+  semLinks?: boolean
 }) {
   if (!genealogia) {
     return (
@@ -136,6 +142,7 @@ export function PedigreeTree({
           atraso={120}
           chave
           stub
+          semLinks={semLinks}
         />
         <No
           id={genealogia.mae_id}
@@ -145,6 +152,7 @@ export function PedigreeTree({
           atraso={120}
           chave
           stub
+          semLinks={semLinks}
         />
 
         <No
@@ -153,6 +161,7 @@ export function PedigreeTree({
           ancestrais={ancestrais}
           className="col-start-3 row-start-1"
           atraso={240}
+          semLinks={semLinks}
         />
         <No
           id={genealogia.avo_paterna_id}
@@ -160,6 +169,7 @@ export function PedigreeTree({
           ancestrais={ancestrais}
           className="col-start-3 row-start-2"
           atraso={240}
+          semLinks={semLinks}
         />
         <No
           id={genealogia.avo_materno_id}
@@ -167,6 +177,7 @@ export function PedigreeTree({
           ancestrais={ancestrais}
           className="col-start-3 row-start-3"
           atraso={240}
+          semLinks={semLinks}
         />
         <No
           id={genealogia.avo_materna_id}
@@ -174,6 +185,7 @@ export function PedigreeTree({
           ancestrais={ancestrais}
           className="col-start-3 row-start-4"
           atraso={240}
+          semLinks={semLinks}
         />
       </div>
     </div>
