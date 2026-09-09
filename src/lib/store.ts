@@ -770,6 +770,22 @@ export const store = {
     return (data ?? []) as MembroEquipe[]
   },
 
+  /** O dono reivindica o número de alguém da equipe. Só o PIN verifica. */
+  async definirTelefoneMembro(userId: string, telefone: string | null): Promise<void> {
+    const { error } = await supabase.rpc('definir_telefone_membro', {
+      p_user: userId,
+      p_telefone: telefone,
+    })
+    if (error) throw new Error(error.message)
+  },
+
+  /** Devolve o PIN em texto — é ele que o dono repassa para a pessoa. */
+  async gerarPinTelefone(userId: string): Promise<string> {
+    const { data, error } = await supabase.rpc('gerar_pin_telefone', { p_user: userId })
+    if (error) throw new Error(error.message)
+    return String(data)
+  },
+
   async getConvitesPendentes(): Promise<Convite[]> {
     const { data, error } = await supabase
       .from('convites')

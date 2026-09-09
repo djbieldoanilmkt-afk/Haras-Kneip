@@ -39,6 +39,10 @@ export type MembroEquipe = {
   email: string
   papel: Papel
   telefone: string | null
+  /** Null enquanto ninguém provou o número mandando o PIN pelo WhatsApp. */
+  verificado_em: string | null
+  /** Há um PIN em aberto. O código em si não vem na listagem de propósito. */
+  tem_pin: boolean
   desde: string
 }
 

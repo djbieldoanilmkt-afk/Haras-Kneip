@@ -82,9 +82,22 @@ vi.mock('@/lib/store', () => ({
         email: 'dono@exemplo.com',
         papel: 'dono' as const,
         telefone: '+5531999998888',
+        verificado_em: null,
+        tem_pin: false,
         desde: '2026-01-01',
       },
+      {
+        user_id: 'u2',
+        email: 'peao@exemplo.com',
+        papel: 'peao' as const,
+        telefone: null,
+        verificado_em: null,
+        tem_pin: false,
+        desde: '2026-02-01',
+      },
     ]),
+    definirTelefoneMembro: vi.fn().mockResolvedValue(undefined),
+    gerarPinTelefone: vi.fn().mockResolvedValue('482913'),
     getConvitesPendentes: vi.fn().mockResolvedValue([]),
     convidarMembro: vi.fn().mockResolvedValue(undefined),
     cancelarConvite: vi.fn().mockResolvedValue(undefined),
@@ -222,55 +235,6 @@ describe('smoke de renderizacao das paginas', () => {
   })
 })
 
-describe('Configuracoes — WhatsApp', () => {
-  it('mostra o telefone salvo formatado, e nao o E.164 cru', async () => {
-    renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
-        <Configuracoes />
-      </TenantProvider>,
-    )
-
-    await waitFor(() => expect(screen.getByLabelText('Seu número')).toHaveValue('(31) 99999-8888'))
-  })
-
-  it('grava normalizado, seja qual for a mascara digitada', async () => {
-    const usuario = userEvent.setup()
-    const { store } = await import('@/lib/store')
-
-    renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
-        <Configuracoes />
-      </TenantProvider>,
-    )
-
-    const campo = await screen.findByLabelText('Seu número')
-    await usuario.clear(campo)
-    await usuario.type(campo, '31 98888 7777')
-    await usuario.click(screen.getByRole('button', { name: /Salvar telefone/ }))
-
-    await waitFor(() => expect(store.salvarTelefone).toHaveBeenCalledWith('+5531988887777'))
-  })
-
-  it('recusa telefone impossivel em vez de gravar lixo', async () => {
-    const usuario = userEvent.setup()
-    const { store } = await import('@/lib/store')
-
-    renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
-        <Configuracoes />
-      </TenantProvider>,
-    )
-
-    const campo = await screen.findByLabelText('Seu número')
-    await usuario.clear(campo)
-    await usuario.type(campo, '999')
-    await usuario.click(screen.getByRole('button', { name: /Salvar telefone/ }))
-
-    expect(await screen.findByText(/Telefone inválido/)).toBeInTheDocument()
-    expect(store.salvarTelefone).not.toHaveBeenCalled()
-  })
-})
-
 describe('Configuracoes — Equipe', () => {
   function renderEquipe() {
     renderPage(
@@ -283,7 +247,7 @@ describe('Configuracoes — Equipe', () => {
   it('mostra a ocupacao contra o limite do plano', async () => {
     renderEquipe()
     // HARAS está no plano 'haras', que vai até 3.
-    await waitFor(() => expect(screen.getByText(/1 de 3 no plano Haras/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/2 de 3 no plano Haras/)).toBeInTheDocument())
   })
 
   it('nao oferece remover o dono, que deixaria a conta orfa', async () => {
@@ -305,5 +269,64 @@ describe('Configuracoes — Equipe', () => {
     await waitFor(() =>
       expect(store.convidarMembro).toHaveBeenCalledWith('peao@exemplo.com', 'peao'),
     )
+  })
+})
+
+describe('Configuracoes — verificacao por PIN', () => {
+  function renderEquipe() {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+  }
+
+  it('marca como nao verificado quem tem numero mas nao provou', async () => {
+    renderEquipe()
+    await waitFor(() => expect(screen.getByText('dono@exemplo.com')).toBeInTheDocument())
+    // Só o dono tem número cadastrado; o peão não mostra estado nenhum.
+    expect(screen.getAllByText(/não verificado/)).toHaveLength(1)
+  })
+
+  it('mostra o PIN e diz de qual aparelho a mensagem tem que sair', async () => {
+    const usuario = userEvent.setup()
+    renderEquipe()
+
+    await waitFor(() => expect(screen.getByText('dono@exemplo.com')).toBeInTheDocument())
+    await usuario.click(screen.getByLabelText('WhatsApp de dono@exemplo.com'))
+    await usuario.click(await screen.findByRole('button', { name: /Gerar PIN/ }))
+
+    expect(await screen.findByText('482913')).toBeInTheDocument()
+    // O número precisa aparecer junto: o PIN só vale vindo daquele aparelho.
+    expect(screen.getAllByText(/\(31\) 99999-8888/).length).toBeGreaterThan(0)
+  })
+
+  it('nao oferece PIN para quem ainda nao tem numero cadastrado', async () => {
+    const usuario = userEvent.setup()
+    renderEquipe()
+
+    await waitFor(() => expect(screen.getByText('peao@exemplo.com')).toBeInTheDocument())
+    await usuario.click(screen.getByLabelText('WhatsApp de peao@exemplo.com'))
+
+    expect(await screen.findByLabelText(/Número do WhatsApp/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Gerar PIN/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('Configuracoes — um campo de telefone so', () => {
+  it('nao existe mais um cartao WhatsApp separado do da equipe', async () => {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Equipe')).toBeInTheDocument())
+
+    // Dois lugares para o mesmo telefone mostravam estados diferentes do mesmo
+    // dado: o card avulso com o valor digitado e a linha da equipe com o que
+    // estava no banco.
+    expect(screen.queryByLabelText('Seu número')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salvar telefone' })).not.toBeInTheDocument()
   })
 })

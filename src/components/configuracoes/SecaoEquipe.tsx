@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MailPlus, Trash2, Users } from 'lucide-react'
+import { BadgeCheck, KeyRound, MailPlus, MessageCircle, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Campo, SelectSimples } from '@/components/form/Campo'
@@ -11,7 +11,8 @@ import { useAsync } from '@/hooks/useAsync'
 import { useTenant } from '@/hooks/tenant'
 import { store } from '@/lib/store'
 import { PLANOS } from '@/lib/planos'
-import { formatarTelefone } from '@/lib/telefone'
+import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
+import type { MembroEquipe } from '@/lib/database.types'
 import { cn } from '@/lib/utils'
 
 const ROTULO_PAPEL: Record<string, string> = {
@@ -30,6 +31,116 @@ const PAPEL_POR_ROTULO: Record<string, 'gerente' | 'peao'> = {
   Gerente: 'gerente',
 }
 const ROTULOS_CONVITE = Object.keys(PAPEL_POR_ROTULO)
+
+
+/**
+ * Reivindicar o número e gerar o PIN.
+ *
+ * Digitar o número aqui não dá acesso a nada: ele só passa a valer quando uma
+ * mensagem chega DAQUELE aparelho com o PIN certo. É o que permite o dono
+ * cadastrar o telefone do peão sem que isso seja uma brecha.
+ */
+function PainelWhatsApp({
+  membro,
+  ehMinhaLinha,
+  aoMudar,
+}: {
+  membro: MembroEquipe
+  /** Na própria linha usa-se o caminho de menor privilégio. */
+  ehMinhaLinha: boolean
+  aoMudar: () => void
+}) {
+  const [telefone, setTelefone] = useState(formatarTelefone(membro.telefone))
+  const [salvando, setSalvando] = useState(false)
+  const [pin, setPin] = useState('')
+  const [gerando, setGerando] = useState(false)
+
+  async function salvar() {
+    setSalvando(true)
+    try {
+      const limpo = telefone.trim()
+      // Na própria linha qualquer membro salva; na de outra pessoa, só o dono.
+      if (ehMinhaLinha) {
+        const normalizado = limpo === '' ? null : normalizarTelefone(limpo)
+        if (limpo !== '' && !normalizado) {
+          toast.error('Telefone inválido. Use DDD + número, como (31) 99999-8888.')
+          return
+        }
+        await store.salvarTelefone(normalizado)
+      } else {
+        await store.definirTelefoneMembro(membro.user_id, limpo === '' ? null : limpo)
+      }
+      toast.success('Telefone atualizado.')
+      setPin('')
+      aoMudar()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível salvar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function gerar() {
+    setGerando(true)
+    try {
+      setPin(await store.gerarPinTelefone(membro.user_id))
+      aoMudar()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível gerar o PIN.')
+    } finally {
+      setGerando(false)
+    }
+  }
+
+  return (
+    <div className="bg-secondary/50 mt-2 rounded-lg p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-48 flex-1">
+          <Campo label="Número do WhatsApp" htmlFor={`tel-${membro.user_id}`}>
+            <Input
+              id={`tel-${membro.user_id}`}
+              inputMode="tel"
+              placeholder="(31) 99999-8888"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+            />
+          </Campo>
+        </div>
+
+        <Button variant="outline" size="sm" disabled={salvando} onClick={salvar}>
+          {salvando ? 'Salvando...' : 'Salvar número'}
+        </Button>
+
+        {membro.telefone && !membro.verificado_em && (
+          <Button size="sm" disabled={gerando} onClick={gerar}>
+            <KeyRound className="size-4" />
+            {gerando ? 'Gerando...' : membro.tem_pin ? 'Gerar novo PIN' : 'Gerar PIN'}
+          </Button>
+        )}
+      </div>
+
+      {pin && (
+        <div className="border-primary/30 bg-card mt-3 rounded-lg border border-dashed p-3">
+          <p className="text-muted-foreground text-xs">Peça para essa pessoa mandar</p>
+          <p className="font-heading text-primary my-1 text-2xl font-extrabold tracking-widest">
+            {pin}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            numa mensagem de WhatsApp para o número do assistente, a partir do celular{' '}
+            {formatarTelefone(membro.telefone)}. O código vale por 24 horas e só funciona vindo
+            desse aparelho.
+          </p>
+        </div>
+      )}
+
+      {membro.verificado_em && (
+        <p className="text-muted-foreground mt-2 text-xs">
+          Número já verificado. Para trocar, salve outro — a verificação recomeça.
+        </p>
+      )}
+    </div>
+  )
+}
 
 /**
  * Equipe do haras.
@@ -53,6 +164,13 @@ export function SecaoEquipe() {
     () => store.getConvitesPendentes(),
     [],
   )
+  const { data: eu } = useAsync(() => store.getMeuMembro(), [])
+
+  const souDono = eu?.papel === 'dono'
+  const [abertoId, setAbertoId] = useState('')
+
+  /** O telefone é da pessoa: o dono mexe no de todos, cada um mexe no seu. */
+  const podeEditarTelefone = (userId: string) => souDono || userId === eu?.user_id
 
   const membros = equipe ?? []
   const pendentes = convites ?? []
@@ -112,8 +230,9 @@ export function SecaoEquipe() {
       </div>
 
       <p className="text-muted-foreground mb-4 text-sm">
-        Cada pessoa tem o próprio acesso e o próprio número de WhatsApp. É assim que o sistema sabe
-        quem lançou cada registro.
+        Cada pessoa tem o próprio acesso e o próprio número de WhatsApp — é assim que o sistema sabe
+        quem lançou cada registro. Cadastrar o número apenas o reivindica: ele passa a valer quando
+        chega uma mensagem daquele celular com o PIN.
       </p>
 
       {carregandoEquipe || carregandoConvites ? (
@@ -122,14 +241,36 @@ export function SecaoEquipe() {
         <>
           <ul className="divide-border mb-4 divide-y">
             {membros.map((m) => (
-              <li key={m.user_id} className="flex items-center gap-3 py-2.5">
+              <li key={m.user_id} className="py-2.5">
+                <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{m.email}</p>
-                  <p className="text-muted-foreground truncate text-xs">
+                  <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
                     {ROTULO_PAPEL[m.papel] ?? m.papel}
                     {m.telefone ? ` · ${formatarTelefone(m.telefone)}` : ' · sem WhatsApp'}
+                    {m.telefone &&
+                      (m.verificado_em ? (
+                        <span className="text-primary flex items-center gap-0.5 font-medium">
+                          <BadgeCheck className="size-3" />
+                          verificado
+                        </span>
+                      ) : (
+                        <span className="text-status-prenha font-medium">· não verificado</span>
+                      ))}
                   </p>
                 </div>
+
+                {podeEditarTelefone(m.user_id) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`WhatsApp de ${m.email}`}
+                    onClick={() => setAbertoId(abertoId === m.user_id ? '' : m.user_id)}
+                  >
+                    <MessageCircle className="size-4" />
+                    WhatsApp
+                  </Button>
+                )}
 
                 {m.papel !== 'dono' && (
                   <Button
@@ -140,6 +281,15 @@ export function SecaoEquipe() {
                   >
                     <Trash2 className="size-4" />
                   </Button>
+                )}
+                </div>
+
+                {podeEditarTelefone(m.user_id) && abertoId === m.user_id && (
+                  <PainelWhatsApp
+                    membro={m}
+                    ehMinhaLinha={m.user_id === eu?.user_id}
+                    aoMudar={recarregarEquipe}
+                  />
                 )}
               </li>
             ))}
