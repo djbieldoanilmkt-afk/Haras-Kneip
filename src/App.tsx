@@ -4,7 +4,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppShell } from '@/components/layout/AppShell'
-import { RequireHaras, RequireSession } from '@/components/auth/guards'
+import { RequireFinanceiro, RequireHaras, RequireSession } from '@/components/auth/guards'
 import { supabase } from '@/lib/supabase'
 
 const Landing = lazy(() => import('@/pages/Landing'))
@@ -90,7 +90,9 @@ export default function App() {
                 <Route path="/calendario" element={<Calendario />} />
                 <Route path="/sanidade" element={<Sanidade />} />
                 <Route path="/reproducao" element={<Reproducao />} />
-                <Route path="/financeiro" element={<Financeiro />} />
+                <Route element={<RequireFinanceiro />}>
+                  <Route path="/financeiro" element={<Financeiro />} />
+                </Route>
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
               </Route>

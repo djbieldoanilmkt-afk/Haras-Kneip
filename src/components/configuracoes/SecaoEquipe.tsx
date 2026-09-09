@@ -314,7 +314,11 @@ export function SecaoEquipe() {
             ))}
           </ul>
 
-          {cheio ? (
+          {!souDono ? (
+            <p className="text-muted-foreground text-sm">
+              Só o dono da conta inclui ou remove gente.
+            </p>
+          ) : cheio ? (
             <p className="text-muted-foreground border-border rounded-lg border border-dashed p-3 text-sm">
               O plano {plano?.nome} vai até {limite} {limite === 1 ? 'usuário' : 'usuários'}. Para
               incluir mais gente, mude de plano.

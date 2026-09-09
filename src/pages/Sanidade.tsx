@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useAsync } from '@/hooks/useAsync'
+import { useTenant, veFinanceiro } from '@/hooks/tenant'
 import { store } from '@/lib/store'
 import { TIPOS_SAUDE } from '@/lib/status'
 import { diasAte, formatBRL, formatDate } from '@/lib/format'
@@ -37,6 +38,9 @@ function hojeISO(): string {
 }
 
 export default function Sanidade() {
+  const { papel } = useTenant()
+  const mostraDinheiro = veFinanceiro(papel)
+
   const [aberto, setAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erros, setErros] = useState<Record<string, string>>({})
@@ -168,11 +172,13 @@ export default function Sanidade() {
               detalhe="dá tempo de agendar"
             />
             <StatCard tom="marca" value={lista.length} label="Registros" detalhe="últimos 12 meses" />
-            <StatCard
-              value={formatBRL(gastoNoPeriodo)}
-              label="Gasto em sanidade"
-              detalhe="últimos 12 meses"
-            />
+            {mostraDinheiro && (
+              <StatCard
+                value={formatBRL(gastoNoPeriodo)}
+                label="Gasto em sanidade"
+                detalhe="últimos 12 meses"
+              />
+            )}
           </>
         )}
       </div>

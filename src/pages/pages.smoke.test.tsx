@@ -208,7 +208,7 @@ describe('smoke de renderizacao das paginas', () => {
 
   it('Configuracoes', async () => {
     renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+      <TenantProvider value={{ haras: HARAS, papel: 'dono' as const, recarregar: () => {} }}>
         <Configuracoes />
       </TenantProvider>,
     )
@@ -218,7 +218,7 @@ describe('smoke de renderizacao das paginas', () => {
 
   it('Configuracoes mostra a identidade e o endereco da vitrine', async () => {
     renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+      <TenantProvider value={{ haras: HARAS, papel: 'dono' as const, recarregar: () => {} }}>
         <Configuracoes />
       </TenantProvider>,
     )
@@ -238,7 +238,7 @@ describe('smoke de renderizacao das paginas', () => {
 describe('Configuracoes — Equipe', () => {
   function renderEquipe() {
     renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+      <TenantProvider value={{ haras: HARAS, papel: 'dono' as const, recarregar: () => {} }}>
         <Configuracoes />
       </TenantProvider>,
     )
@@ -275,7 +275,7 @@ describe('Configuracoes — Equipe', () => {
 describe('Configuracoes — verificacao por PIN', () => {
   function renderEquipe() {
     renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+      <TenantProvider value={{ haras: HARAS, papel: 'dono' as const, recarregar: () => {} }}>
         <Configuracoes />
       </TenantProvider>,
     )
@@ -316,7 +316,7 @@ describe('Configuracoes — verificacao por PIN', () => {
 describe('Configuracoes — um campo de telefone so', () => {
   it('nao existe mais um cartao WhatsApp separado do da equipe', async () => {
     renderPage(
-      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+      <TenantProvider value={{ haras: HARAS, papel: 'dono' as const, recarregar: () => {} }}>
         <Configuracoes />
       </TenantProvider>,
     )

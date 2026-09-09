@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 import { AppSidebar } from './AppSidebar'
 import { TenantProvider } from '@/hooks/tenant'
-import type { Haras } from '@/lib/database.types'
+import type { Haras, Papel } from '@/lib/database.types'
 
 const HARAS: Haras = {
   id: 'h1',
@@ -17,10 +17,10 @@ const HARAS: Haras = {
   created_at: '2026-01-01T00:00:00Z',
 }
 
-function renderEm(path: string, haras: Haras = HARAS) {
+function renderEm(path: string, haras: Haras = HARAS, papel: Papel = 'dono') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <TenantProvider value={{ haras, recarregar: () => {} }}>
+      <TenantProvider value={{ haras, papel, recarregar: () => {} }}>
         <AppSidebar />
       </TenantProvider>
     </MemoryRouter>,
@@ -69,5 +69,21 @@ describe('AppSidebar', () => {
     renderEm('/painel', { ...HARAS, logo_url: 'https://exemplo/logo.png' })
     const img = document.querySelector('aside img')
     expect(img).toHaveAttribute('src', 'https://exemplo/logo.png')
+  })
+})
+
+describe('AppSidebar por papel', () => {
+  it('esconde o Financeiro do peao', () => {
+    renderEm('/painel', HARAS, 'peao')
+
+    expect(screen.queryByRole('link', { name: /Financeiro/ })).not.toBeInTheDocument()
+    // O resto do dia a dia continua.
+    expect(screen.getByRole('link', { name: /Sanidade/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Plantel/ })).toBeInTheDocument()
+  })
+
+  it('mostra o Financeiro para o gerente', () => {
+    renderEm('/painel', HARAS, 'gerente')
+    expect(screen.getByRole('link', { name: /Financeiro/ })).toBeInTheDocument()
   })
 })

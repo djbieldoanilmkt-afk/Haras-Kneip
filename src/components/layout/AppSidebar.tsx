@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 
 import { Brand } from './Brand'
-import { useTenant } from '@/hooks/tenant'
+import { useTenant, veFinanceiro } from '@/hooks/tenant'
 import { PRODUTO } from '@/lib/produto'
 import { cn } from '@/lib/utils'
 
@@ -20,14 +20,17 @@ const NAV = [
   { to: '/catalogo', label: 'Plantel', icon: BookOpen },
   { to: '/reproducao', label: 'Reprodução', icon: Baby },
   { to: '/sanidade', label: 'Sanidade', icon: ShieldCheck },
-  { to: '/financeiro', label: 'Financeiro', icon: Wallet },
+  // `financeiro: true` some do menu para quem não tem acesso ao livro. Esconder
+  // é só conveniência: quem recusa de verdade é o RLS.
+  { to: '/financeiro', label: 'Financeiro', icon: Wallet, financeiro: true },
   { to: '/calendario', label: 'Calendário', icon: Calendar },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { haras } = useTenant()
+  const { haras, papel } = useTenant()
+  const itens = NAV.filter((i) => !i.financeiro || veFinanceiro(papel))
 
   return (
     <aside className="bg-card border-border flex h-full w-60 shrink-0 flex-col border-r">
@@ -36,7 +39,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3" aria-label="Menu principal">
-        {NAV.map(({ to, label, icon: Icon }) => (
+        {itens.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

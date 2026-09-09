@@ -448,51 +448,51 @@ describe('getResumoCustos', () => {
 })
 
 describe('createDespesa', () => {
-  it('grava so a despesa quando nenhum animal e escolhido', async () => {
-    const cadeias = porTabela({ despesas: { data: { id: 'd1' }, error: null } })
-
-    await store.createDespesa(
-      { data: '2026-09-09', categoria: 'Manutenção', descricao: 'Cerca', valor: 500 },
-      [],
-    )
-
-    expect(cadeias.despesas.insert).toHaveBeenCalled()
-    expect(mockFrom).not.toHaveBeenCalledWith('despesa_rateios')
-  })
-
-  it('divide o valor entre os animais em partes que somam o total', async () => {
-    const cadeias = porTabela({
-      despesas: { data: { id: 'd1' }, error: null },
-      despesa_rateios: { data: null, error: null },
-    })
+  it('manda a despesa e o rateio numa chamada so', async () => {
+    mockRpc.mockResolvedValue({ data: 'd1', error: null })
 
     await store.createDespesa(
       { data: '2026-09-09', categoria: 'Ração e suplemento', descricao: 'Ração', valor: 1200 },
       ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
     )
 
-    const linhas = (cadeias.despesa_rateios.insert as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(linhas).toHaveLength(9)
+    // Dois INSERTs pelo PostgREST nao rodam na mesma transacao; a funcao roda.
+    expect(mockFrom).not.toHaveBeenCalled()
+    const enviado = mockRpc.mock.calls[0][1]
+    expect(mockRpc.mock.calls[0][0]).toBe('criar_despesa')
+    expect(enviado.p_rateios).toHaveLength(9)
+
     // 1200 / 9 = 133,333...: arredondar cada parte perderia centavos.
-    const soma = linhas.reduce((s: number, l: { valor: number }) => s + Math.round(l.valor * 100), 0)
+    const soma = enviado.p_rateios.reduce(
+      (s: number, r: { valor: number }) => s + Math.round(r.valor * 100),
+      0,
+    )
     expect(soma).toBe(120_000)
   })
 
-  it('apaga a despesa quando o rateio falha, para nao deixar meio lancamento', async () => {
-    const cadeias = porTabela({
-      despesas: { data: { id: 'd1' }, error: null },
-      despesa_rateios: { data: null, error: new Error('rateio falhou') },
+  it('manda rateio vazio quando nenhum animal e escolhido', async () => {
+    mockRpc.mockResolvedValue({ data: 'd1', error: null })
+
+    await store.createDespesa(
+      { data: '2026-09-09', categoria: 'Manutenção', descricao: 'Cerca', valor: 500 },
+      [],
+    )
+
+    expect(mockRpc.mock.calls[0][1].p_rateios).toEqual([])
+  })
+
+  it('propaga a recusa do banco em vez de fingir sucesso', async () => {
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Seu perfil não tem acesso ao financeiro.' },
     })
 
     await expect(
       store.createDespesa(
-        { data: '2026-09-09', categoria: 'Ração e suplemento', descricao: 'Ração', valor: 100 },
-        ['a1'],
+        { data: '2026-09-09', categoria: 'Outros', descricao: 'x', valor: 10 },
+        [],
       ),
-    ).rejects.toThrow('rateio falhou')
-
-    expect(cadeias.despesas.delete).toHaveBeenCalled()
-    expect(cadeias.despesas.eq).toHaveBeenCalledWith('id', 'd1')
+    ).rejects.toThrow('Seu perfil não tem acesso ao financeiro.')
   })
 })
 

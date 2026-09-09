@@ -173,3 +173,36 @@ describe('Painel — manejo e cadastro', () => {
     expect(screen.getByText('420 kg')).toBeInTheDocument()
   })
 })
+
+describe('Painel — o que o peao nao ve', () => {
+  it('esconde o dinheiro do peao', async () => {
+    renderPage(<Dashboard />, { papel: 'peao' })
+
+    await waitFor(() => expect(screen.getByText('Total de animais')).toBeInTheDocument())
+    expect(screen.queryByText('Custo no mês')).not.toBeInTheDocument()
+    expect(screen.queryByText('Custos de sanidade')).not.toBeInTheDocument()
+  })
+
+  it('nem chega a consultar as despesas quando o perfil nao ve financeiro', async () => {
+    const { store } = await import('@/lib/store')
+    renderPage(<Dashboard />, { papel: 'peao' })
+
+    await waitFor(() => expect(screen.getByText('Total de animais')).toBeInTheDocument())
+    // O RLS devolveria só a parte de sanidade, e o número sairia errado.
+    expect(store.getResumoCustos).not.toHaveBeenCalled()
+  })
+
+  it('o peao continua vendo o manejo, que e o trabalho dele', async () => {
+    renderPage(<Dashboard />, { papel: 'peao' })
+
+    await waitFor(() => expect(screen.getByText('Ocupação')).toBeInTheDocument())
+    expect(screen.getByText('Sanidade')).toBeInTheDocument()
+    // Aparece no cartao de numero e no painel; ambos ficam para o peao.
+    expect(screen.getAllByText('Partos previstos')).toHaveLength(2)
+  })
+
+  it('o gerente ve o dinheiro', async () => {
+    renderPage(<Dashboard />, { papel: 'gerente' })
+    await waitFor(() => expect(screen.getByText('Custo no mês')).toBeInTheDocument())
+  })
+})

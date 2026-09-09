@@ -698,36 +698,34 @@ export const store = {
   },
 
   /**
-   * Grava a despesa e, se houver animais escolhidos, o rateio em partes que
-   * somam exatamente o valor.
+   * Grava a despesa e o rateio numa transação só.
    *
-   * Não é uma transação: o PostgREST não abre uma que abranja duas tabelas.
-   * Por isso, se o rateio falhar, a despesa recém-criada é apagada. Deixá-la
-   * viva seria pior do que o erro — ela contaria no total do mês e sumiria do
-   * custo por animal, e quem lançou acharia que atribuiu. O jeito definitivo
-   * é mover as duas escritas para uma função no banco.
+   * Antes eram dois INSERTs pelo PostgREST, que não abre transação abrangendo
+   * duas tabelas: se o segundo falhasse, a despesa ficava viva contando no
+   * total do mês e sumida do custo por animal. O cliente compensava apagando,
+   * o que cobre o caso comum e não cobre queda de rede no meio.
+   *
+   * A divisão em centavos continua aqui, e não no banco, porque é onde está
+   * testada — e chega pronta para a função, que só confere se a soma fecha.
    */
-  async createDespesa(dados: NovaDespesa, animaisIds: string[] = []): Promise<Despesa> {
-    const { data, error } = await supabase.from('despesas').insert([dados]).select().single()
-    if (error) throw error
-
-    const criada = data as Despesa
-    if (animaisIds.length === 0) return criada
-
+  async createDespesa(dados: NovaDespesa, animaisIds: string[] = []): Promise<string> {
     const partes = ratearCentavos(paraCentavos(dados.valor), animaisIds.length)
-    const linhas = animaisIds.map((animal_id, i) => ({
-      despesa_id: criada.id,
+    const rateios = animaisIds.map((animal_id, i) => ({
       animal_id,
       valor: paraReais(partes[i]),
     }))
 
-    const { error: erroRateio } = await supabase.from('despesa_rateios').insert(linhas)
-    if (erroRateio) {
-      await supabase.from('despesas').delete().eq('id', criada.id)
-      throw erroRateio
-    }
-
-    return criada
+    const { data, error } = await supabase.rpc('criar_despesa', {
+      p_data: dados.data,
+      p_categoria: dados.categoria,
+      p_descricao: dados.descricao,
+      p_valor: dados.valor,
+      p_fornecedor: dados.fornecedor ?? null,
+      p_observacoes: dados.observacoes ?? null,
+      p_rateios: rateios,
+    })
+    if (error) throw new Error(error.message)
+    return String(data)
   },
 
   // -------------------------------------------------- exclusão reversível

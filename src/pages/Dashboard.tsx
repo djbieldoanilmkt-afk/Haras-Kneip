@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAsync } from '@/hooks/useAsync'
+import { useTenant, veFinanceiro } from '@/hooks/tenant'
 import { store } from '@/lib/store'
 import { diasAte, formatBRL, formatDate, rotuloPrazo } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -31,6 +32,9 @@ function contar(valores: (string | null)[]): { name: string; value: number }[] {
 }
 
 export default function Dashboard() {
+  const { papel } = useTenant()
+  const mostraDinheiro = veFinanceiro(papel)
+
   const { data: stats, loading: carregandoStats } = useAsync(() => store.getStats(), [])
   const { data: animais, loading: carregandoAnimais } = useAsync(
     () => store.getAnimais({ orderBy: 'created_at', ascending: false }),
@@ -41,7 +45,12 @@ export default function Dashboard() {
     [],
   )
   const { data: partos, loading: carregandoPartos } = useAsync(() => store.getPartosPrevistos(), [])
-  const { data: custos, loading: carregandoCustos } = useAsync(() => store.getResumoCustos(), [])
+  // Peão não lê despesas (RLS de 009), então nem chama — a consulta voltaria
+  // só com a parte de sanidade e o número apareceria errado se fosse exibido.
+  const { data: custos, loading: carregandoCustos } = useAsync(
+    () => (mostraDinheiro ? store.getResumoCustos() : Promise.resolve(null)),
+    [mostraDinheiro],
+  )
   const { data: pesagens, loading: carregandoPesagens } = useAsync(
     () => store.getPesagensResumo(),
     [],
@@ -81,11 +90,13 @@ export default function Dashboard() {
               label="Partos previstos"
               detalhe={partosAtrasados > 0 ? `${partosAtrasados} passou da data` : 'próximos 90 dias'}
             />
-            <StatCard
-              value={formatBRL(custos?.mesAtual ?? 0)}
-              label="Custo no mês"
-              detalhe={`mês anterior ${formatBRL(custos?.mesAnterior ?? 0)}`}
-            />
+            {mostraDinheiro && (
+              <StatCard
+                value={formatBRL(custos?.mesAtual ?? 0)}
+                label="Custo no mês"
+                detalhe={`mês anterior ${formatBRL(custos?.mesAnterior ?? 0)}`}
+              />
+            )}
           </>
         )}
       </div>
@@ -97,7 +108,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
-        <ResumoCustos resumo={custos ?? null} carregando={carregandoCustos} />
+        {mostraDinheiro && <ResumoCustos resumo={custos ?? null} carregando={carregandoCustos} />}
 
         <Card className="p-4">
           <div className="mb-1 flex items-center justify-between">

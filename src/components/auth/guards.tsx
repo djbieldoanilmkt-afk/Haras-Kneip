@@ -1,12 +1,12 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { Skeleton } from '@/components/ui/skeleton'
-import { TenantProvider } from '@/hooks/tenant'
+import { TenantProvider, useTenant, veFinanceiro } from '@/hooks/tenant'
 import { useAsync } from '@/hooks/useAsync'
 import { useSession } from '@/hooks/useSession'
 import { supabase } from '@/lib/supabase'
 import { contaPodeUsar } from '@/lib/conta'
-import type { Haras } from '@/lib/database.types'
+import type { Haras, Papel } from '@/lib/database.types'
 
 function TelaCarregando() {
   return (
@@ -37,14 +37,22 @@ export function RequireHaras() {
   const { session } = useSession()
   const location = useLocation()
 
-  const { data: haras, loading, error, reload } = useAsync(async () => {
+  // Papel vem junto do haras: e a mesma linha de `membros`, e evita uma
+  // segunda ida ao banco em toda tela que precisa saber o que oferecer.
+  const { data: vinculo, loading, error, reload } = useAsync(async () => {
     const { data, error } = await supabase
       .from('membros')
-      .select('haras:haras_id(*)')
+      .select('papel, haras:haras_id(*)')
       .maybeSingle()
     if (error) throw error
-    return (data?.haras as unknown as Haras) ?? null
+    if (!data?.haras) return null
+    return {
+      haras: data.haras as unknown as Haras,
+      papel: (data.papel as Papel) ?? 'peao',
+    }
   }, [session?.user.id])
+
+  const haras = vinculo?.haras ?? null
 
   if (loading) return <TelaCarregando />
 
@@ -63,8 +71,21 @@ export function RequireHaras() {
   }
 
   return (
-    <TenantProvider value={{ haras, recarregar: reload }}>
+    <TenantProvider value={{ haras, papel: vinculo?.papel ?? 'peao', recarregar: reload }}>
       <Outlet />
     </TenantProvider>
   )
+}
+
+/**
+ * Rotas do livro financeiro.
+ *
+ * O menu já esconde o item, mas quem digitar a URL chegaria numa tela que
+ * carrega vazia — o RLS devolve zero despesas para o peão. Melhor devolver ao
+ * painel do que mostrar um financeiro que parece zerado.
+ */
+export function RequireFinanceiro() {
+  const { papel } = useTenant()
+  if (!veFinanceiro(papel)) return <Navigate to="/painel" replace />
+  return <Outlet />
 }
