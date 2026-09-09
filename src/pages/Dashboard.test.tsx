@@ -43,9 +43,38 @@ const PARTOS = vi.hoisted(() => [
   },
 ])
 
+const PLANTEL = vi.hoisted(() => {
+  const base = {
+    apelido: null,
+    registro: null,
+    raca: 'Mangalarga Marchador',
+    tipo_marcha: 'Marcha Batida',
+    sexo: 'Fêmea' as const,
+    peso: null,
+    altura: null,
+    status_reprodutivo: 'Vazia',
+    status_saude: null,
+    premiacao: null,
+    observacoes: null,
+    em_destaque: false,
+    ativo: true,
+    created_at: '2024-01-01',
+    updated_at: null,
+  }
+  return [
+    { ...base, id: 'a1', nome: 'Aurora da Kneip', pelagem: 'Tordilha', data_nascimento: '2019-04-01', baia_piquete: 'Piquete 1', foto_url: 'x.jpg', registro_abccmm: 'A1' },
+    { ...base, id: 'a2', nome: 'Vencedor JK', pelagem: 'Castanha', data_nascimento: '2018-02-01', baia_piquete: 'Piquete 1', foto_url: null, registro_abccmm: null },
+    { ...base, id: 'a3', nome: 'Brisa Suave', pelagem: 'Alazã', data_nascimento: '2020-06-01', baia_piquete: null, foto_url: null, registro_abccmm: null },
+  ]
+})
+
+const PESAGENS = vi.hoisted(() => [
+  { animal_id: 'a1', animal: 'Aurora da Kneip', peso: 420, data_pesagem: '2026-08-01', variacao: 15 },
+])
+
 vi.mock('@/lib/store', () => ({
   store: {
-    getAnimais: vi.fn().mockResolvedValue([]),
+    getAnimais: vi.fn().mockResolvedValue(PLANTEL),
     getStats: vi.fn().mockResolvedValue({
       totalAnimais: 9,
       femeas: 6,
@@ -54,6 +83,7 @@ vi.mock('@/lib/store', () => ({
       lactantes: 1,
       eventosProximos: [],
     }),
+    getPesagensResumo: vi.fn().mockResolvedValue(PESAGENS),
     getPendenciasSanitarias: vi.fn().mockResolvedValue(PENDENCIAS),
     getPartosPrevistos: vi.fn().mockResolvedValue(PARTOS),
     getResumoCustos: vi.fn().mockResolvedValue({
@@ -114,5 +144,32 @@ describe('Painel', () => {
     await waitFor(() => expect(screen.getAllByText('Aurora da Kneip').length).toBeGreaterThan(0))
     expect(screen.getByText('Há 12 dias')).toBeInTheDocument()
     expect(screen.getByText('Em 5 dias')).toBeInTheDocument()
+  })
+})
+
+describe('Painel — manejo e cadastro', () => {
+  it('agrupa o plantel por piquete e mostra os nomes, nao so a contagem', async () => {
+    renderPage(<Dashboard />)
+
+    await waitFor(() => expect(screen.getByText('Ocupação')).toBeInTheDocument())
+    expect(screen.getByText('Piquete 1')).toBeInTheDocument()
+    expect(screen.getByText('Sem local definido')).toBeInTheDocument()
+  })
+
+  it('cobra os campos que faltam no cadastro', async () => {
+    renderPage(<Dashboard />)
+
+    await waitFor(() => expect(screen.getByText('Cadastro do plantel')).toBeInTheDocument())
+    // 2 dos 3 animais estao sem foto e sem registro ABCCMM.
+    expect(screen.getByText('Sem foto')).toBeInTheDocument()
+    expect(screen.getByText('Sem registro ABCCMM')).toBeInTheDocument()
+  })
+
+  it('acusa o animal que nunca foi pesado, que nao aparece na tabela de pesagens', async () => {
+    renderPage(<Dashboard />)
+
+    await waitFor(() => expect(screen.getByText('Pesagens')).toBeInTheDocument())
+    expect(screen.getAllByText('Nunca pesado')).toHaveLength(2)
+    expect(screen.getByText('420 kg')).toBeInTheDocument()
   })
 })

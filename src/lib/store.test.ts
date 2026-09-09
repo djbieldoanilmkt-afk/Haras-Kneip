@@ -485,3 +485,72 @@ describe('createDespesa', () => {
     expect(cadeias.despesas.eq).toHaveBeenCalledWith('id', 'd1')
   })
 })
+
+describe('getPesagensResumo', () => {
+  it('usa a pesagem mais recente e compara com a anterior', async () => {
+    mockFrom.mockReturnValue(
+      queryStub({
+        data: [
+          { animal_id: 'a1', peso: 420, data_pesagem: '2026-09-01', animais: { nome: 'Aurora' } },
+          { animal_id: 'a1', peso: 400, data_pesagem: '2026-06-01', animais: { nome: 'Aurora' } },
+          { animal_id: 'a1', peso: 390, data_pesagem: '2026-03-01', animais: { nome: 'Aurora' } },
+        ],
+        error: null,
+      }),
+    )
+
+    const [resumo] = await store.getPesagensResumo()
+
+    expect(resumo.peso).toBe(420)
+    expect(resumo.data_pesagem).toBe('2026-09-01')
+    // Compara com a de junho (400), nao com a de marco (390).
+    expect(resumo.variacao).toBe(20)
+  })
+
+  it('marca variacao nula quando so existe uma pesagem', async () => {
+    mockFrom.mockReturnValue(
+      queryStub({
+        data: [
+          { animal_id: 'a1', peso: 420, data_pesagem: '2026-09-01', animais: { nome: 'Aurora' } },
+        ],
+        error: null,
+      }),
+    )
+
+    const [resumo] = await store.getPesagensResumo()
+
+    expect(resumo.variacao).toBeNull()
+  })
+
+  it('devolve o animal pesado ha mais tempo primeiro', async () => {
+    mockFrom.mockReturnValue(
+      queryStub({
+        data: [
+          { animal_id: 'a1', peso: 420, data_pesagem: '2026-09-01', animais: { nome: 'Aurora' } },
+          { animal_id: 'a2', peso: 500, data_pesagem: '2026-02-01', animais: { nome: 'Vencedor' } },
+        ],
+        error: null,
+      }),
+    )
+
+    const resumo = await store.getPesagensResumo()
+
+    expect(resumo.map((r) => r.animal)).toEqual(['Vencedor', 'Aurora'])
+  })
+
+  it('registra perda de peso como variacao negativa', async () => {
+    mockFrom.mockReturnValue(
+      queryStub({
+        data: [
+          { animal_id: 'a1', peso: 380, data_pesagem: '2026-09-01', animais: { nome: 'Aurora' } },
+          { animal_id: 'a1', peso: 410, data_pesagem: '2026-06-01', animais: { nome: 'Aurora' } },
+        ],
+        error: null,
+      }),
+    )
+
+    const [resumo] = await store.getPesagensResumo()
+
+    expect(resumo.variacao).toBe(-30)
+  })
+})

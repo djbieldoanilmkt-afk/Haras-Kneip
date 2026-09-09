@@ -6,6 +6,9 @@ import { StatCard } from '@/components/StatCard'
 import { iniciais } from '@/components/AnimalCard'
 import { PelagemChart } from '@/components/charts/PelagemChart'
 import { StatusChart } from '@/components/charts/StatusChart'
+import { CadastroIncompleto } from '@/components/painel/CadastroIncompleto'
+import { EvolucaoPeso } from '@/components/painel/EvolucaoPeso'
+import { OcupacaoPiquetes } from '@/components/painel/OcupacaoPiquetes'
 import { PartosPrevistos } from '@/components/painel/PartosPrevistos'
 import { ResumoCustos } from '@/components/painel/ResumoCustos'
 import { SemaforoSanitario } from '@/components/painel/SemaforoSanitario'
@@ -39,9 +42,14 @@ export default function Dashboard() {
   )
   const { data: partos, loading: carregandoPartos } = useAsync(() => store.getPartosPrevistos(), [])
   const { data: custos, loading: carregandoCustos } = useAsync(() => store.getResumoCustos(), [])
+  const { data: pesagens, loading: carregandoPesagens } = useAsync(
+    () => store.getPesagensResumo(),
+    [],
+  )
 
   const eventos = stats?.eventosProximos ?? []
-  const recentes = (animais ?? []).slice(0, 5)
+  const plantel = animais ?? []
+  const recentes = plantel.slice(0, 5)
 
   const listaPendencias = pendencias ?? []
   const vencidas = listaPendencias.filter((p) => diasAte(p.proxima_data) < 0).length
@@ -141,6 +149,16 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Manejo: onde cada animal está e quem precisa ir à balança. */}
+      <div className="mb-4 grid gap-3 lg:grid-cols-2">
+        <OcupacaoPiquetes animais={plantel} carregando={carregandoAnimais} />
+        <EvolucaoPeso
+          pesagens={pesagens ?? []}
+          animais={plantel}
+          carregando={carregandoPesagens || carregandoAnimais}
+        />
+      </div>
+
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-semibold">Distribuição de pelagens</h2>
@@ -165,43 +183,48 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card className="p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Clock className="size-4" />
-          Últimos cadastros
-        </h2>
+      {/* Higiene do cadastro: o que falta preencher e o que entrou por último. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <CadastroIncompleto animais={plantel} carregando={carregandoAnimais} />
 
-        {carregandoAnimais ? (
-          <Skeleton className="h-20 rounded-lg" />
-        ) : recentes.length === 0 ? (
-          <p className="text-muted-foreground py-8 text-center text-sm">Nenhum animal cadastrado.</p>
-        ) : (
-          /* Em grade, e não em lista: ocupando a largura toda, cinco linhas
-             empilhadas deixariam metade do cartão vazia. */
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {recentes.map((a) => (
-              <li key={a.id}>
-                <Link
-                  to={`/animal/${a.id}`}
-                  className="border-border hover:bg-secondary flex items-center gap-2.5 rounded-lg border p-2.5 transition-colors"
-                >
-                  <div className="bg-secondary text-primary flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold">
-                    {a.foto_url ? (
-                      <img src={a.foto_url} alt="" className="size-full object-cover" />
-                    ) : (
-                      iniciais(a.nome)
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{a.nome}</p>
-                    <p className="text-muted-foreground truncate text-xs">{a.pelagem}</p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+        <Card className="p-4">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+            <Clock className="size-4" />
+            Últimos cadastros
+          </h2>
+
+          {carregandoAnimais ? (
+            <Skeleton className="h-40 rounded-lg" />
+          ) : recentes.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              Nenhum animal cadastrado.
+            </p>
+          ) : (
+            <ul className="divide-border divide-y">
+              {recentes.map((a) => (
+                <li key={a.id}>
+                  <Link
+                    to={`/animal/${a.id}`}
+                    className="hover:bg-secondary -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors"
+                  >
+                    <div className="bg-secondary text-primary flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold">
+                      {a.foto_url ? (
+                        <img src={a.foto_url} alt="" className="size-full object-cover" />
+                      ) : (
+                        iniciais(a.nome)
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{a.nome}</p>
+                      <p className="text-muted-foreground truncate text-xs">{a.pelagem}</p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
   )
 }

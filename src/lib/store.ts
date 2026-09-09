@@ -61,6 +61,15 @@ export type PartoPrevisto = {
   data_prevista_parto: string
 }
 
+export type PesagemResumo = {
+  animal_id: string
+  animal: string
+  peso: number
+  data_pesagem: string
+  /** Diferença em kg contra a pesagem anterior; null quando é a primeira. */
+  variacao: number | null
+}
+
 export type CustoPorMes = { mes: string; total: number }
 export type CustoPorAnimal = { animal_id: string; animal: string; total: number }
 export type CustoPorCategoria = { categoria: string; total: number }
@@ -570,6 +579,50 @@ export const store = {
         .map(([categoria, total]) => ({ categoria, total }))
         .sort((a, b) => b.total - a.total),
     }
+  },
+
+  // -------------------------------------------------------------- pesagens
+
+  /**
+   * Última pesagem de cada animal, com a variação contra a anterior.
+   *
+   * Vem da mais antiga para a mais recente porque quem olha esta lista está
+   * atrás de quem está há tempo demais sem passar na balança — esse é o
+   * primeiro nome que precisa aparecer.
+   */
+  async getPesagensResumo(): Promise<PesagemResumo[]> {
+    const { data, error } = await supabase
+      .from('pesagens')
+      .select('animal_id, peso, data_pesagem, animais(nome)')
+      .order('data_pesagem', { ascending: false })
+
+    if (error) throw error
+
+    // A consulta vem da mais recente para a mais antiga, então a primeira
+    // linha de cada animal é a pesagem atual e a segunda é a anterior. As
+    // demais não interessam aqui.
+    const atual = new Map<string, PesagemResumo>()
+    const jaComparado = new Set<string>()
+
+    for (const linha of data ?? []) {
+      const p = linha as unknown as Pesagem & ComAnimal
+      const registro = atual.get(p.animal_id)
+
+      if (!registro) {
+        atual.set(p.animal_id, {
+          animal_id: p.animal_id,
+          animal: p.animais?.nome ?? 'Animal removido',
+          peso: Number(p.peso),
+          data_pesagem: p.data_pesagem,
+          variacao: null,
+        })
+      } else if (!jaComparado.has(p.animal_id)) {
+        registro.variacao = registro.peso - Number(p.peso)
+        jaComparado.add(p.animal_id)
+      }
+    }
+
+    return [...atual.values()].sort((a, b) => a.data_pesagem.localeCompare(b.data_pesagem))
   },
 
   // -------------------------------------------------------------- despesas
