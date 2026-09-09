@@ -12,6 +12,7 @@ const HARAS: Haras = {
   slug: 'haras-kneip',
   logo_url: null,
   status_conta: 'ativa',
+  plano: 'haras' as const,
   trial_expira_em: '2099-01-01T00:00:00Z',
   created_at: '2026-01-01T00:00:00Z',
 }

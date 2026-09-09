@@ -37,6 +37,7 @@ const HARAS = vi.hoisted(() => ({
   slug: 'haras-kneip',
   logo_url: null,
   status_conta: 'ativa' as const,
+  plano: 'haras' as const,
   trial_expira_em: '2099-01-01T00:00:00Z',
   created_at: '2026-01-01T00:00:00Z',
 }))
@@ -75,6 +76,21 @@ vi.mock('@/lib/store', () => ({
       created_at: '2026-01-01',
     }),
     salvarTelefone: vi.fn().mockResolvedValue(undefined),
+    getMinhaEquipe: vi.fn().mockResolvedValue([
+      {
+        user_id: 'u1',
+        email: 'dono@exemplo.com',
+        papel: 'dono' as const,
+        telefone: '+5531999998888',
+        desde: '2026-01-01',
+      },
+    ]),
+    getConvitesPendentes: vi.fn().mockResolvedValue([]),
+    convidarMembro: vi.fn().mockResolvedValue(undefined),
+    cancelarConvite: vi.fn().mockResolvedValue(undefined),
+    removerMembro: vi.fn().mockResolvedValue(undefined),
+    getMeusConvites: vi.fn().mockResolvedValue([]),
+    aceitarConvite: vi.fn().mockResolvedValue(undefined),
     getSaudeRegistrosPlantel: vi.fn().mockResolvedValue([]),
     getReproducaoPlantel: vi.fn().mockResolvedValue([]),
     createSaudeRegistro: vi.fn().mockResolvedValue({ id: 's1' }),
@@ -252,5 +268,42 @@ describe('Configuracoes — WhatsApp', () => {
 
     expect(await screen.findByText(/Telefone inválido/)).toBeInTheDocument()
     expect(store.salvarTelefone).not.toHaveBeenCalled()
+  })
+})
+
+describe('Configuracoes — Equipe', () => {
+  function renderEquipe() {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+  }
+
+  it('mostra a ocupacao contra o limite do plano', async () => {
+    renderEquipe()
+    // HARAS está no plano 'haras', que vai até 3.
+    await waitFor(() => expect(screen.getByText(/1 de 3 no plano Haras/)).toBeInTheDocument())
+  })
+
+  it('nao oferece remover o dono, que deixaria a conta orfa', async () => {
+    renderEquipe()
+    await waitFor(() => expect(screen.getByText('dono@exemplo.com')).toBeInTheDocument())
+    expect(screen.queryByLabelText('Remover dono@exemplo.com')).not.toBeInTheDocument()
+  })
+
+  it('convida usando o codigo do papel, e nao o rotulo da tela', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+
+    renderEquipe()
+    const campo = await screen.findByLabelText('E-mail de quem entra')
+    await usuario.type(campo, 'peao@exemplo.com')
+    await usuario.click(screen.getByRole('button', { name: /Convidar/ }))
+
+    // 'Peão' é o texto; 'peao' é o que o check constraint aceita.
+    await waitFor(() =>
+      expect(store.convidarMembro).toHaveBeenCalledWith('peao@exemplo.com', 'peao'),
+    )
   })
 })

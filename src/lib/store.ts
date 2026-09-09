@@ -15,12 +15,15 @@ import type {
   AnimalResumo,
   Anotacao,
   Configuracao,
+  Convite,
+  ConviteRecebido,
   Despesa,
   Evento,
   Genealogia,
   GenealogiaResumo,
   Haras,
   Membro,
+  MembroEquipe,
   Pesagem,
   Reproducao,
   SaudeRegistro,
@@ -752,6 +755,59 @@ export const store = {
       p_id: id,
     })
     if (error) throw error
+  },
+
+  // ------------------------------------------------------------- equipe
+  //
+  // Tudo aqui passa por função no banco. Duas razões: o e-mail dos membros
+  // mora em auth.users, fora do alcance do RLS, e o limite de usuários do
+  // plano precisa ser conferido onde não dá para driblar — checar só na tela
+  // deixaria a API aberta.
+
+  async getMinhaEquipe(): Promise<MembroEquipe[]> {
+    const { data, error } = await supabase.rpc('minha_equipe')
+    if (error) throw error
+    return (data ?? []) as MembroEquipe[]
+  },
+
+  async getConvitesPendentes(): Promise<Convite[]> {
+    const { data, error } = await supabase
+      .from('convites')
+      .select('*')
+      .is('aceito_em', null)
+      .order('created_at')
+    if (error) throw error
+    return (data ?? []) as Convite[]
+  },
+
+  async convidarMembro(email: string, papel: 'gerente' | 'peao'): Promise<void> {
+    const { error } = await supabase.rpc('convidar_membro', {
+      p_email: email,
+      p_papel: papel,
+    })
+    if (error) throw new Error(error.message)
+  },
+
+  async cancelarConvite(id: string): Promise<void> {
+    const { error } = await supabase.rpc('cancelar_convite', { p_convite: id })
+    if (error) throw new Error(error.message)
+  },
+
+  async removerMembro(userId: string): Promise<void> {
+    const { error } = await supabase.rpc('remover_membro', { p_user: userId })
+    if (error) throw new Error(error.message)
+  },
+
+  /** Convites que chegaram para o e-mail de quem está logado. */
+  async getMeusConvites(): Promise<ConviteRecebido[]> {
+    const { data, error } = await supabase.rpc('meus_convites')
+    if (error) throw error
+    return (data ?? []) as ConviteRecebido[]
+  },
+
+  async aceitarConvite(id: string): Promise<void> {
+    const { error } = await supabase.rpc('aceitar_convite', { p_convite: id })
+    if (error) throw new Error(error.message)
   },
 
   // ------------------------------------------------------------ membro

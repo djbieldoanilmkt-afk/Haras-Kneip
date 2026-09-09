@@ -25,13 +25,43 @@ export type Haras = {
   logo_url: string | null
   status_conta: StatusConta
   trial_expira_em: string
+  plano: PlanoId
   created_at: string
+}
+
+export type PlanoId = 'essencial' | 'haras' | 'plantel'
+
+export type Papel = 'dono' | 'gerente' | 'peao'
+
+/** Uma linha de minha_equipe(): o e-mail vive em auth.users, fora do RLS. */
+export type MembroEquipe = {
+  user_id: string
+  email: string
+  papel: Papel
+  telefone: string | null
+  desde: string
+}
+
+export type Convite = {
+  id: string
+  haras_id: string
+  email: string
+  papel: Exclude<Papel, 'dono'>
+  created_at: string
+  aceito_em: string | null
+}
+
+/** Convite visto do lado de quem foi convidado. */
+export type ConviteRecebido = {
+  id: string
+  haras_nome: string
+  papel: Exclude<Papel, 'dono'>
 }
 
 export type Membro = {
   haras_id: string
   user_id: string
-  papel: 'dono'
+  papel: Papel
   /** E.164 normalizado (+55DDNNNNNNNNN). É por ele que o agente de WhatsApp
    *  descobre quem mandou a mensagem e em qual haras gravar. */
   telefone: string | null

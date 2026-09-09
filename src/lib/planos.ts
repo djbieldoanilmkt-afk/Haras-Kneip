@@ -19,6 +19,14 @@ export type Plano = {
   resumo: string
   animais: string
   usuarios: string
+  /**
+   * Espelha limite_usuarios() em 007_equipe.sql. null = ilimitado.
+   *
+   * O número vive nos dois lugares de propósito: aqui para a tela avisar
+   * antes de tentar, e no banco para recusar de fato. Se só o front soubesse,
+   * bastaria chamar a API direto para furar o limite.
+   */
+  limiteUsuarios: number | null
   destaque?: boolean
   recursos: string[]
 }
@@ -32,6 +40,7 @@ export const PLANOS: Plano[] = [
     resumo: 'Para quem está saindo da planilha',
     animais: 'Até 15 animais',
     usuarios: '1 usuário',
+    limiteUsuarios: 1,
     recursos: [
       'Plantel completo com fotos',
       'Genealogia em três gerações',
@@ -49,6 +58,7 @@ export const PLANOS: Plano[] = [
     resumo: 'Para o criador que vive disso',
     animais: 'Até 50 animais',
     usuarios: 'Até 3 usuários',
+    limiteUsuarios: 3,
     destaque: true,
     recursos: [
       'Tudo do Essencial',
@@ -66,6 +76,7 @@ export const PLANOS: Plano[] = [
     resumo: 'Para haras grande e central de reprodução',
     animais: 'Animais ilimitados',
     usuarios: 'Usuários ilimitados',
+    limiteUsuarios: null,
     recursos: [
       'Tudo do Haras',
       'Vários haras na mesma conta',

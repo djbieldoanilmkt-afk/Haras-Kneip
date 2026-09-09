@@ -14,6 +14,7 @@ import { store } from '@/lib/store'
 import { supabase } from '@/lib/supabase'
 import { iniciais } from '@/components/AnimalCard'
 import { PRODUTO } from '@/lib/produto'
+import { SecaoEquipe } from '@/components/configuracoes/SecaoEquipe'
 import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
 
 /** Identidade da conta: o que aparece no sistema e na vitrine pública. */
@@ -308,6 +309,8 @@ export default function Configuracoes() {
       <SecaoIdentidade />
 
       <SecaoWhatsApp />
+
+      <SecaoEquipe />
 
       <Card className="mb-4 p-5">
         <h2 className="mb-4 text-sm font-semibold">Informações do Haras</h2>
