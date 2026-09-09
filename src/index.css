@@ -283,6 +283,167 @@
     animation: tracar-vertical 600ms var(--ease-saida) forwards;
     animation-delay: inherit;
   }
+
+  /* --- fim das regras em camada; as de notificacao ficam fora, ver abaixo --- */
+}
+
+/*
+  Notificacoes (sonner).
+
+  O padrao da biblioteca e um retangulo cinza que nao se parece com nada do
+  resto do sistema. Aqui a caixa recebe a mesma linguagem dos cards — raio
+  grande, borda de 1px, sombra em duas camadas — o icone vira um distintivo
+  redondo tingido pelo tipo da mensagem, e uma barra fina mostra quanto falta
+  para sumir.
+
+  Ganhar do CSS do sonner exigiu duas coisas, e uma so nao resolvia:
+
+  1. Ficar FORA de @layer components. O sonner injeta o CSS dele em tempo de
+     execucao num <style> sem camada, e na cascata estilo sem camada vence
+     estilo em camada por mais especifico que este seja. Dentro da camada so
+     pegavam as propriedades que o sonner nao declara (backdrop-filter,
+     overflow); raio, padding, fundo e sombra continuavam os dele.
+
+  2. Repetir a classe no seletor. Fora da camada a disputa volta a ser por
+     especificidade — e a regra do sonner e [data-sonner-toast]
+     [data-styled="true"], ou seja 0-2-0, exatamente o mesmo peso de
+     .cn-toast[data-sonner-toast]. Empate resolve por ordem de insercao, e a
+     folha dele entra depois da nossa. `.cn-toast.cn-toast` leva a 0-3-0 e
+     tira o resultado das maos da ordem. Preferido a [data-styled="true"]
+     porque nao depende de um atributo interno da biblioteca.
+
+  O que NAO se mexe aqui: `transform` do elemento. O sonner empilha, desloca
+  e arrasta os toasts por transform inline — sobrescrever quebraria o
+  empilhamento. Todo o movimento proprio vive nos filhos.
+*/
+/*
+  Centralizacao do container.
+
+  O sonner centraliza com `left: 50%` + `transform: translateX(-50%)`. Aqui
+  isso nao e confiavel: qualquer coisa que zere o transform do elemento
+  (outra folha, uma animacao) devolve a caixa deslocada meia largura para a
+  direita, e o defeito e silencioso. `margin-inline: auto` entre `left: 0` e
+  `right: 0` chega ao mesmo lugar usando so o algoritmo de posicionamento,
+  sem transform nenhum para alguem atropelar.
+
+  A largura em min() e o que a regra mobile do sonner fazia por nos; como
+  este seletor tem peso maior (0-3-0, pela classe .toaster que o componente
+  ja poe no elemento) ele vence a regra dele tambem dentro do @media, entao
+  precisa resolver o caso estreito sozinho.
+*/
+.toaster[data-sonner-toaster][data-x-position='center'] {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  transform: none;
+  width: min(var(--width), calc(100vw - 2rem));
+}
+
+.cn-toast.cn-toast[data-sonner-toast] {
+  --cor: var(--primary);
+  --tinta: var(--accent);
+
+  position: relative;
+  overflow: hidden;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--popover) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 7%, transparent),
+    0 8px 24px -6px color-mix(in srgb, var(--foreground) 14%, transparent),
+    0 24px 48px -16px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='error'] {
+  --cor: var(--destructive);
+  --tinta: color-mix(in srgb, var(--destructive) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='warning'] {
+  --cor: var(--status-prenha);
+  --tinta: color-mix(in srgb, var(--status-prenha) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='info'] {
+  --cor: var(--status-cobertura);
+  --tinta: color-mix(in srgb, var(--status-cobertura) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-icon] {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--tinta);
+  color: var(--cor);
+  animation: selo-toast 400ms var(--ease-saida) both;
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-title] {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--popover-foreground);
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-description] {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+/*
+  Tempo restante. Anda em sincronia com o fechamento porque as duas
+  duracoes saem da mesma constante em sonner.tsx.
+*/
+.cn-toast.cn-toast[data-sonner-toast]::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--cor) 60%, transparent);
+  transform-origin: left;
+  animation: esvaziar-toast var(--duracao-toast, 4000ms) linear forwards;
+}
+
+/* O sonner congela o relogio quando o ponteiro entra; a barra acompanha. */
+[data-sonner-toaster]:hover .cn-toast.cn-toast[data-sonner-toast]::after {
+  animation-play-state: paused;
+}
+
+/* Toast de carregamento nao tem prazo — barra correndo seria mentira. */
+.cn-toast.cn-toast[data-sonner-toast][data-type='loading']::after {
+  display: none;
+}
+
+@keyframes selo-toast {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes esvaziar-toast {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 /*

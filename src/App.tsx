@@ -100,7 +100,8 @@ export default function App() {
         </Routes>
       </Suspense>
 
-      <Toaster position="bottom-right" />
+      {/* Posicao e duracao vivem no proprio Toaster, junto do CSS que depende delas. */}
+      <Toaster />
     </HashRouter>
   )
 }
