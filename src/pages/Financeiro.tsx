@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { toastDesfazer } from '@/components/ui/sonner'
+
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
 import { Campo, SelectSimples } from '@/components/form/Campo'
@@ -107,14 +109,31 @@ export default function Financeiro() {
     }
   }
 
+  /**
+   * Sem confirmação, com desfazer.
+   *
+   * O diálogo de confirmação cobra atenção antes de todo mundo, inclusive de
+   * quem acertou — e a pessoa acaba clicando "sim" no automático, que é
+   * justamente quando o engano passa. O desfazer cobra atenção só de quem
+   * errou, e é o que o agente de WhatsApp vai precisar quando entender mal um
+   * áudio.
+   */
   async function remover(id: string, descricao: string) {
-    if (!window.confirm(`Excluir a despesa "${descricao}"? O rateio dela some junto.`)) return
-
     try {
-      await store.deleteDespesa(id)
-      toast.success('Despesa excluída.')
+      await store.excluirRegistro('despesas', id)
       recarregarResumo()
       recarregarDespesas()
+
+      toastDesfazer(`"${descricao}" excluída.`, async () => {
+        try {
+          await store.restaurarRegistro('despesas', id)
+          recarregarResumo()
+          recarregarDespesas()
+          toast.success('Despesa restaurada.')
+        } catch (e) {
+          toast.error(`Não foi possível restaurar: ${e instanceof Error ? e.message : 'erro'}`)
+        }
+      })
     } catch (e) {
       toast.error(`Erro ao excluir: ${e instanceof Error ? e.message : 'desconhecido'}`)
     }

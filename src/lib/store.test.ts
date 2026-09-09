@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
+const mockGetUser = vi.fn()
 vi.mock('./supabase', () => ({
-  supabase: { from: (...args: unknown[]) => mockFrom(...args) },
+  supabase: {
+    from: (...args: unknown[]) => mockFrom(...args),
+    rpc: (...args: unknown[]) => mockRpc(...args),
+    auth: { getUser: () => mockGetUser() },
+  },
 }))
 
 import { store } from './store'
@@ -37,7 +43,11 @@ function queryStub(result: Resultado) {
   return chain
 }
 
-beforeEach(() => mockFrom.mockReset())
+beforeEach(() => {
+  mockFrom.mockReset()
+  mockRpc.mockReset()
+  mockGetUser.mockReset()
+})
 
 describe('getAnimais', () => {
   it('consulta a tabela animais filtrando por ativo e ordenando por nome', async () => {
@@ -552,5 +562,71 @@ describe('getPesagensResumo', () => {
     const [resumo] = await store.getPesagensResumo()
 
     expect(resumo.variacao).toBe(-30)
+  })
+})
+
+describe('exclusao reversivel', () => {
+  it('exclui pela funcao do banco, e nao por delete', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null })
+
+    await store.excluirRegistro('saude_registros', 's1')
+
+    // Precisa ser RPC: o UPDATE direto e recusado pelo RLS quando a linha
+    // resultante deixa de ser visivel. Ver 006_fundacao_agente.sql.
+    expect(mockRpc).toHaveBeenCalledWith('excluir_registro', {
+      p_tabela: 'saude_registros',
+      p_id: 's1',
+    })
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('restaura pela funcao correspondente', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null })
+
+    await store.restaurarRegistro('despesas', 'd1')
+
+    expect(mockRpc).toHaveBeenCalledWith('restaurar_registro', {
+      p_tabela: 'despesas',
+      p_id: 'd1',
+    })
+  })
+
+  it('propaga o erro do banco em vez de fingir sucesso', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: new Error('Registro não encontrado.') })
+
+    await expect(store.excluirRegistro('despesas', 'x')).rejects.toThrow(
+      'Registro não encontrado.',
+    )
+  })
+})
+
+describe('salvarTelefone', () => {
+  it('grava no membro da sessao', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const chain = queryStub({ data: null, error: null })
+    mockFrom.mockReturnValue(chain)
+
+    await store.salvarTelefone('+5531999998888')
+
+    expect(mockFrom).toHaveBeenCalledWith('membros')
+    expect(chain.update).toHaveBeenCalledWith({ telefone: '+5531999998888' })
+    expect(chain.eq).toHaveBeenCalledWith('user_id', 'u1')
+  })
+
+  it('traduz a violacao de indice unico para uma frase util', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockFrom.mockReturnValue(queryStub({ data: null, error: { code: '23505' } }))
+
+    // A mensagem crua do Postgres cita o nome do indice, que nao diz nada a
+    // quem esta preenchendo o campo.
+    await expect(store.salvarTelefone('+5531999998888')).rejects.toThrow(
+      'Este telefone já está cadastrado em outra conta.',
+    )
+  })
+
+  it('recusa gravar sem sessao', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+
+    await expect(store.salvarTelefone('+5531999998888')).rejects.toThrow('Sessão expirada.')
   })
 })

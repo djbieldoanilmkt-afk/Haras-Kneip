@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, Download, ImageUp, Info, Upload } from 'lucide-react'
+import { Copy, Download, ImageUp, Info, MessageCircle, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
@@ -14,6 +14,7 @@ import { store } from '@/lib/store'
 import { supabase } from '@/lib/supabase'
 import { iniciais } from '@/components/AnimalCard'
 import { PRODUTO } from '@/lib/produto'
+import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
 
 /** Identidade da conta: o que aparece no sistema e na vitrine pública. */
 function SecaoIdentidade() {
@@ -157,6 +158,98 @@ function SecaoIdentidade() {
   )
 }
 
+/**
+ * Telefone que o agente de WhatsApp vai usar para reconhecer quem manda a
+ * mensagem.
+ *
+ * Fica aqui, e não no cadastro do haras, porque o número identifica a PESSOA:
+ * cada membro tem o seu, e é dele que o agente tira em qual haras gravar.
+ */
+function SecaoWhatsApp() {
+  const { data: membro, loading, reload } = useAsync(() => store.getMeuMembro(), [])
+  const [valor, setValor] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (membro) setValor(formatarTelefone(membro.telefone))
+  }, [membro])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    setErro('')
+
+    // Campo vazio limpa o cadastro; qualquer outra coisa precisa ser um
+    // telefone reconhecivel, senao o agente nunca acharia o dono do numero.
+    const vazio = valor.trim() === ''
+    const normalizado = vazio ? null : normalizarTelefone(valor)
+
+    if (!vazio && !normalizado) {
+      setErro('Telefone inválido. Use DDD + número, como (31) 99999-8888.')
+      return
+    }
+
+    setSalvando(true)
+    try {
+      await store.salvarTelefone(normalizado)
+      toast.success(normalizado ? 'Telefone salvo.' : 'Telefone removido.')
+      reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Card className="mb-4 p-5">
+      <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+        <MessageCircle className="size-4" />
+        WhatsApp
+      </h2>
+      <p className="text-muted-foreground mb-4 text-sm">
+        Em breve você vai poder lançar despesa, sanidade e cadastro falando por áudio. O assistente
+        precisa saber de qual número você fala para gravar no haras certo.
+      </p>
+
+      {loading ? (
+        <Skeleton className="h-20 rounded-lg" />
+      ) : (
+        <form onSubmit={salvar} className="grid gap-4 sm:grid-cols-2">
+          <Campo
+            label="Seu número"
+            htmlFor="telefone"
+            erro={erro}
+            hint="Com DDD. Deixe vazio para remover."
+          >
+            <Input
+              id="telefone"
+              inputMode="tel"
+              placeholder="(31) 99999-8888"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+            />
+          </Campo>
+
+          <div className="flex items-end">
+            <p className="text-muted-foreground text-xs">
+              {membro?.telefone_verificado_em
+                ? 'Número verificado.'
+                : 'Ainda não verificado — a verificação chega junto com o assistente.'}
+            </p>
+          </div>
+
+          <div className="col-span-full flex justify-end">
+            <Button type="submit" disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Salvar telefone'}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
+  )
+}
+
 export default function Configuracoes() {
   const { data: configuracoes, loading } = useAsync(() => store.getConfiguracoes(), [])
   const [form, setForm] = useState({ haras_nome: '', proprietario: '', localizacao: '' })
@@ -213,6 +306,8 @@ export default function Configuracoes() {
       <PageHeader title="Configurações" description="Dados do haras e gestão dos registros" />
 
       <SecaoIdentidade />
+
+      <SecaoWhatsApp />
 
       <Card className="mb-4 p-5">
         <h2 className="mb-4 text-sm font-semibold">Informações do Haras</h2>

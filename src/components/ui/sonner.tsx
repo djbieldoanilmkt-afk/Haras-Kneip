@@ -1,4 +1,4 @@
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner"
 import { CheckIcon, InfoIcon, TriangleAlertIcon, XIcon, Loader2Icon } from "lucide-react"
 
 import { useTheme } from "@/hooks/useTheme"
@@ -47,4 +47,27 @@ const Toaster = ({ ...props }: ToasterProps) => {
   )
 }
 
-export { Toaster }
+/**
+ * Janela do desfazer. Maior que a duração padrão porque aqui o toast não é
+ * aviso, é a única chance de voltar atrás — 4 segundos não dão tempo de ler a
+ * mensagem e decidir.
+ */
+const DURACAO_DESFAZER = 10_000
+
+/**
+ * Aviso de exclusão com botão de desfazer.
+ *
+ * Existe como helper, e não solto em cada tela, por causa da barra de tempo:
+ * ela é uma animação CSS que lê `--duracao-toast`, então um toast mais longo
+ * precisa levar a variável junto. Espalhar isso pelas telas garantiria que
+ * alguém esquecesse e a barra terminasse antes do toast sumir.
+ */
+function toastDesfazer(mensagem: string, aoDesfazer: () => void) {
+  toast.success(mensagem, {
+    duration: DURACAO_DESFAZER,
+    style: { "--duracao-toast": `${DURACAO_DESFAZER}ms` } as React.CSSProperties,
+    action: { label: "Desfazer", onClick: aoDesfazer },
+  })
+}
+
+export { Toaster, toastDesfazer }

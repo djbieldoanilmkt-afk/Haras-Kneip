@@ -32,8 +32,37 @@ export type Membro = {
   haras_id: string
   user_id: string
   papel: 'dono'
+  /** E.164 normalizado (+55DDNNNNNNNNN). É por ele que o agente de WhatsApp
+   *  descobre quem mandou a mensagem e em qual haras gravar. */
+  telefone: string | null
+  telefone_verificado_em: string | null
   created_at: string
 }
+
+/**
+ * De onde veio o registro (006_fundacao_agente.sql). Sem isto, um lançamento
+ * errado não tem como ser atribuído — não dá para saber se alguém digitou ou
+ * se o agente entendeu mal o áudio.
+ */
+export type Origem = 'app' | 'whatsapp' | 'importacao'
+
+/** Colunas que 006 acrescentou a todas as tabelas de dados. */
+export type Autoria = {
+  criado_por: string | null
+  origem: Origem
+}
+
+/** Tabelas cuja exclusão é reversível — a mesma lista de tabela_reversivel(). */
+export const TABELAS_REVERSIVEIS = [
+  'saude_registros',
+  'reproducao',
+  'anotacoes',
+  'eventos',
+  'pesagens',
+  'despesas',
+] as const
+
+export type TabelaReversivel = (typeof TABELAS_REVERSIVEIS)[number]
 
 export type Animal = {
   id: string

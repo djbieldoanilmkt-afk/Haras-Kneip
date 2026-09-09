@@ -20,9 +20,11 @@ import type {
   Genealogia,
   GenealogiaResumo,
   Haras,
+  Membro,
   Pesagem,
   Reproducao,
   SaudeRegistro,
+  TabelaReversivel,
 } from './database.types'
 
 export type AnimalFilters = {
@@ -725,10 +727,67 @@ export const store = {
     return criada
   },
 
-  /** O rateio cai junto: a chave estrangeira é `on delete cascade`. */
-  async deleteDespesa(id: string): Promise<void> {
-    const { error } = await supabase.from('despesas').delete().eq('id', id)
+  // -------------------------------------------------- exclusão reversível
+
+  /**
+   * Exclusão lógica. Some da tela na hora e continua no banco, para o
+   * "desfazer" logo em seguida.
+   *
+   * Vai por função no banco, e não por UPDATE direto, porque o PostgreSQL
+   * aplica as políticas de SELECT à linha resultante de um UPDATE: com
+   * `excluido_em is null` na política, esconder a própria linha é recusado
+   * como violação de RLS. Ver o comentário em 006_fundacao_agente.sql.
+   */
+  async excluirRegistro(tabela: TabelaReversivel, id: string): Promise<void> {
+    const { error } = await supabase.rpc('excluir_registro', {
+      p_tabela: tabela,
+      p_id: id,
+    })
     if (error) throw error
+  },
+
+  async restaurarRegistro(tabela: TabelaReversivel, id: string): Promise<void> {
+    const { error } = await supabase.rpc('restaurar_registro', {
+      p_tabela: tabela,
+      p_id: id,
+    })
+    if (error) throw error
+  },
+
+  // ------------------------------------------------------------ membro
+
+  async getMeuMembro(): Promise<Membro | null> {
+    const { data, error } = await supabase.from('membros').select('*').single()
+    if (error) {
+      if (error.code === NAO_ENCONTRADO) return null
+      throw error
+    }
+    return data as Membro
+  },
+
+  /**
+   * Grava o telefone já normalizado. O índice único é sobre o valor gravado,
+   * então dois formatos do mesmo número passariam batido se cada tela
+   * gravasse do seu jeito — a normalização precisa acontecer num lugar só.
+   */
+  async salvarTelefone(telefone: string | null): Promise<void> {
+    const { data: sessao } = await supabase.auth.getUser()
+    const userId = sessao.user?.id
+    if (!userId) throw new Error('Sessão expirada.')
+
+    const { error } = await supabase
+      .from('membros')
+      .update({ telefone })
+      .eq('user_id', userId)
+
+    if (error) {
+      // 23505 = índice único. A mensagem crua do Postgres cita o nome do
+      // índice, que não diz nada a quem está preenchendo o campo.
+      if ((error as { code?: string }).code === '23505') {
+        throw new Error('Este telefone já está cadastrado em outra conta.')
+      }
+      throw error
+    }
   },
 
   // -------------------------------------------------------- configuracoes

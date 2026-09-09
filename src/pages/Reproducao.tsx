@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { toastDesfazer } from '@/components/ui/sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
@@ -120,6 +122,28 @@ export default function Reproducao() {
     }
   }
 
+  /** Sem confirmação, com desfazer — mesma escolha do financeiro. */
+  async function remover(id: string, rotulo: string) {
+    try {
+      await store.excluirRegistro('reproducao', id)
+      reload()
+      recarregarPartos()
+
+      toastDesfazer(`${rotulo} excluído.`, async () => {
+        try {
+          await store.restaurarRegistro('reproducao', id)
+          reload()
+          recarregarPartos()
+          toast.success('Evento restaurado.')
+        } catch (e) {
+          toast.error(`Não foi possível restaurar: ${e instanceof Error ? e.message : 'erro'}`)
+        }
+      })
+    } catch (e) {
+      toast.error(`Erro ao excluir: ${e instanceof Error ? e.message : 'desconhecido'}`)
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -223,10 +247,10 @@ export default function Reproducao() {
         ) : (
           <ul className="divide-border divide-y">
             {filtrada.map((e) => (
-              <li key={e.id}>
+              <li key={e.id} className="flex items-center gap-1">
                 <Link
                   to={`/animal/${e.animal_id}`}
-                  className="hover:bg-secondary -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors"
+                  className="hover:bg-secondary -mx-2 flex flex-1 items-center gap-3 rounded-md px-2 py-2.5 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{e.matriz}</p>
@@ -252,6 +276,15 @@ export default function Reproducao() {
                     </span>
                   )}
                 </Link>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Excluir evento de ${e.matriz}`}
+                  onClick={() => remover(e.id, `${e.tipo} de ${e.matriz}`)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </li>
             ))}
           </ul>

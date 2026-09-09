@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import { renderPage } from '@/test/renderPage'
 
@@ -65,6 +66,15 @@ vi.mock('@/lib/store', () => ({
       eventosProximos: [],
     }),
     getPesagensResumo: vi.fn().mockResolvedValue([]),
+    getMeuMembro: vi.fn().mockResolvedValue({
+      haras_id: 'h1',
+      user_id: 'u1',
+      papel: 'dono' as const,
+      telefone: '+5531999998888',
+      telefone_verificado_em: null,
+      created_at: '2026-01-01',
+    }),
+    salvarTelefone: vi.fn().mockResolvedValue(undefined),
     getSaudeRegistrosPlantel: vi.fn().mockResolvedValue([]),
     getReproducaoPlantel: vi.fn().mockResolvedValue([]),
     createSaudeRegistro: vi.fn().mockResolvedValue({ id: 's1' }),
@@ -193,5 +203,54 @@ describe('smoke de renderizacao das paginas', () => {
       expect(screen.getByRole('heading', { name: 'Haras Kneip' })).toBeInTheDocument(),
     )
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  })
+})
+
+describe('Configuracoes — WhatsApp', () => {
+  it('mostra o telefone salvo formatado, e nao o E.164 cru', async () => {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByLabelText('Seu número')).toHaveValue('(31) 99999-8888'))
+  })
+
+  it('grava normalizado, seja qual for a mascara digitada', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+
+    const campo = await screen.findByLabelText('Seu número')
+    await usuario.clear(campo)
+    await usuario.type(campo, '31 98888 7777')
+    await usuario.click(screen.getByRole('button', { name: /Salvar telefone/ }))
+
+    await waitFor(() => expect(store.salvarTelefone).toHaveBeenCalledWith('+5531988887777'))
+  })
+
+  it('recusa telefone impossivel em vez de gravar lixo', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+
+    const campo = await screen.findByLabelText('Seu número')
+    await usuario.clear(campo)
+    await usuario.type(campo, '999')
+    await usuario.click(screen.getByRole('button', { name: /Salvar telefone/ }))
+
+    expect(await screen.findByText(/Telefone inválido/)).toBeInTheDocument()
+    expect(store.salvarTelefone).not.toHaveBeenCalled()
   })
 })
