@@ -374,8 +374,14 @@
 
 .cn-toast.cn-toast[data-sonner-toast] [data-icon] {
   flex: none;
-  display: grid;
-  place-items: center;
+  /*
+    `justify-content` e obrigatorio: o sonner declara flex-start neste
+    elemento, e sem sobrescrever isso o icone encosta na borda esquerda do
+    circulo — era o defeito visivel de "traco fora da bolinha".
+  */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 2rem;
   height: 2rem;
   margin: 0;
@@ -383,6 +389,17 @@
   background: var(--tinta);
   color: var(--cor);
   animation: selo-toast 400ms var(--ease-saida) both;
+}
+
+/*
+  Zerar a margem do selo nao bastava, porque o sonner poe `margin-left: -1px`
+  no proprio <svg>. Com isso a caixa de margem do icone mede 17px em vez de
+  18, e centralizar 17 num quadrado de 32 joga a borda esquerda para 6,5px
+  contra 7,5px do outro lado. O desvio e de 1px e passa despercebido numa
+  leitura rapida, mas num circulo pequeno o olho pega.
+*/
+.cn-toast.cn-toast[data-sonner-toast] [data-icon] > svg {
+  margin: 0;
 }
 
 .cn-toast.cn-toast[data-sonner-toast] [data-title] {
