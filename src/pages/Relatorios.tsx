@@ -109,7 +109,7 @@ export default function Relatorios() {
           Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
         ) : (
           <>
-            <StatCard highlight value={resumo.total} label="Total de animais" />
+            <StatCard tom="marca" value={resumo.total} label="Total de animais" />
             <StatCard value={resumo.femeas} label="Fêmeas" />
             <StatCard value={resumo.machos} label="Machos" />
             <StatCard value={resumo.idadeMedia} label="Idade média (anos)" />

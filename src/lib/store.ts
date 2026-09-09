@@ -41,15 +41,78 @@ export type Stats = {
   eventosProximos: Evento[]
 }
 
+/** Vacina, vermífugo ou exame com data de retorno marcada e já no radar. */
+export type PendenciaSanitaria = {
+  id: string
+  animal_id: string
+  animal: string
+  tipo: string
+  descricao: string
+  proxima_data: string
+}
+
+export type PartoPrevisto = {
+  id: string
+  animal_id: string
+  matriz: string
+  garanhao: string | null
+  data_prevista_parto: string
+}
+
+export type CustoPorMes = { mes: string; total: number }
+export type CustoPorAnimal = { animal_id: string; animal: string; total: number }
+
+export type ResumoCustos = {
+  mesAtual: number
+  mesAnterior: number
+  porMes: CustoPorMes[]
+  porAnimal: CustoPorAnimal[]
+}
+
+/**
+ * O PostgREST devolve o vínculo "muitos para um" como objeto, mas o cliente
+ * tipa a coluna embutida de forma ampla porque este projeto não usa tipos
+ * gerados. Este é o formato real que chega.
+ */
+type ComAnimal = { animais: { nome: string } | null }
+
 /** Código do PostgREST para "nenhuma linha encontrada" em consulta .single(). */
 const NAO_ENCONTRADO = 'PGRST116'
 
-function hoje(): string {
-  return new Date().toISOString().slice(0, 10)
+/**
+ * Data no calendário LOCAL, em "AAAA-MM-DD".
+ *
+ * `toISOString()` converte para UTC antes de cortar a string. Em fuso
+ * negativo — o Brasil inteiro — a partir do fim da tarde isso devolve o dia
+ * seguinte, e a agenda passaria a pular o dia corrente. É o mesmo motivo pelo
+ * qual format.ts decompõe a string em vez de usar `new Date()`.
+ */
+function paraISO(d: Date): string {
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mes}-${dia}`
 }
 
+function hoje(): string {
+  return paraISO(new Date())
+}
+
+/** Aceita deslocamento negativo. `setDate` vira mês e ano sozinho. */
 function emDias(dias: number): string {
-  return new Date(Date.now() + dias * 86_400_000).toISOString().slice(0, 10)
+  const d = new Date()
+  d.setDate(d.getDate() + dias)
+  return paraISO(d)
+}
+
+/** Primeiro dia do mês, deslocado em meses (negativo = passado). */
+function inicioDoMes(deslocamento = 0): string {
+  const agora = new Date()
+  return paraISO(new Date(agora.getFullYear(), agora.getMonth() + deslocamento, 1))
+}
+
+/** Chave "AAAA-MM" usada para agrupar por mês. */
+export function chaveMes(data: string): string {
+  return data.slice(0, 7)
 }
 
 export const store = {
@@ -323,6 +386,126 @@ export const store = {
       prenhas: animais.filter((a) => a.status_reprodutivo === 'Prenha').length,
       lactantes: animais.filter((a) => a.status_reprodutivo === 'Lactante').length,
       eventosProximos: (eventosProximos ?? []) as Evento[],
+    }
+  },
+
+  // ------------------------------------------------------------- pendências
+
+  /**
+   * Sanidade com retorno marcado: o que já venceu e o que vence dentro da
+   * janela. Não há limite para trás de propósito — vacina atrasada há três
+   * meses continua sendo pendência; ela não deixa de ser problema por ser
+   * antiga.
+   */
+  async getPendenciasSanitarias(janelaDias = 30): Promise<PendenciaSanitaria[]> {
+    const { data, error } = await supabase
+      .from('saude_registros')
+      .select('id, animal_id, tipo, descricao, proxima_data, animais(nome)')
+      .not('proxima_data', 'is', null)
+      .lte('proxima_data', emDias(janelaDias))
+      .order('proxima_data', { ascending: true })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const r = linha as unknown as SaudeRegistro & ComAnimal
+      return {
+        id: r.id,
+        animal_id: r.animal_id,
+        animal: r.animais?.nome ?? 'Animal removido',
+        tipo: r.tipo,
+        descricao: r.descricao,
+        proxima_data: r.proxima_data as string,
+      }
+    })
+  },
+
+  /**
+   * Partos previstos. `cria_id` preenchido quer dizer que o potro já nasceu e
+   * foi cadastrado, então a previsão sai da lista.
+   *
+   * A janela para trás é intencional: égua que passou da data prevista é
+   * justamente o caso que mais precisa de atenção, e sumir do painel seria o
+   * comportamento errado.
+   */
+  async getPartosPrevistos(janelaDias = 90): Promise<PartoPrevisto[]> {
+    const { data, error } = await supabase
+      .from('reproducao')
+      // Duas chaves desta tabela apontam para `animais` (a matriz e a cria).
+      // Sem nomear a constraint o PostgREST não sabe qual seguir e recusa.
+      .select(
+        'id, animal_id, garanhao, data_prevista_parto, animais!reproducao_animal_id_fkey(nome)',
+      )
+      .not('data_prevista_parto', 'is', null)
+      .is('cria_id', null)
+      .gte('data_prevista_parto', emDias(-30))
+      .lte('data_prevista_parto', emDias(janelaDias))
+      .order('data_prevista_parto', { ascending: true })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const r = linha as unknown as Reproducao & ComAnimal
+      return {
+        id: r.id,
+        animal_id: r.animal_id,
+        matriz: r.animais?.nome ?? 'Animal removido',
+        garanhao: r.garanhao,
+        data_prevista_parto: r.data_prevista_parto as string,
+      }
+    })
+  },
+
+  // ---------------------------------------------------------------- custos
+
+  /**
+   * Custo declarado nos registros de sanidade, por mês e por animal.
+   *
+   * Hoje esta é a única fonte de valor no banco. Quando existir a tabela de
+   * despesas do haras, ela entra aqui somando — a forma do retorno já prevê
+   * isso e a tela não precisa mudar.
+   */
+  async getResumoCustos(meses = 6): Promise<ResumoCustos> {
+    const { data, error } = await supabase
+      .from('saude_registros')
+      .select('custo, data_registro, animal_id, animais(nome)')
+      .not('custo', 'is', null)
+      .gte('data_registro', inicioDoMes(-(meses - 1)))
+
+    if (error) throw error
+
+    // Semeia todos os meses da janela com zero: mês sem gasto precisa aparecer
+    // como zero, senão o gráfico pula o período e sugere um gasto contínuo que
+    // não houve.
+    const porMesMapa = new Map<string, number>()
+    for (let i = meses - 1; i >= 0; i--) porMesMapa.set(chaveMes(inicioDoMes(-i)), 0)
+
+    const porAnimalMapa = new Map<string, CustoPorAnimal>()
+
+    for (const linha of data ?? []) {
+      const r = linha as unknown as SaudeRegistro & ComAnimal
+      const valor = Number(r.custo ?? 0)
+
+      const mes = chaveMes(r.data_registro)
+      if (porMesMapa.has(mes)) porMesMapa.set(mes, (porMesMapa.get(mes) ?? 0) + valor)
+
+      const acumulado = porAnimalMapa.get(r.animal_id)
+      if (acumulado) {
+        acumulado.total += valor
+      } else {
+        porAnimalMapa.set(r.animal_id, {
+          animal_id: r.animal_id,
+          animal: r.animais?.nome ?? 'Animal removido',
+          total: valor,
+        })
+      }
+    }
+
+    return {
+      mesAtual: porMesMapa.get(chaveMes(inicioDoMes(0))) ?? 0,
+      mesAnterior: porMesMapa.get(chaveMes(inicioDoMes(-1))) ?? 0,
+      porMes: [...porMesMapa].map(([mes, total]) => ({ mes, total })),
+      porAnimal: [...porAnimalMapa.values()].sort((a, b) => b.total - a.total),
     }
   },
 

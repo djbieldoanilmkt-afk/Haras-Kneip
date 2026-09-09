@@ -58,3 +58,46 @@ export function calcularIdade(dataNascimento: DataISO): string {
   }
   return `${anos} ${anos === 1 ? 'ano' : 'anos'} e ${meses} ${meses === 1 ? 'mês' : 'meses'}`
 }
+
+/**
+ * Dias inteiros entre hoje e uma data "AAAA-MM-DD". Negativo = já passou.
+ *
+ * A conta é feita em partes de calendário, e não em milissegundos: subtrair
+ * timestamps erra por um dia nas viradas de horário de verão, quando o dia
+ * tem 23 ou 25 horas.
+ */
+export function diasAte(data: DataISO): number {
+  const p = partes(String(data ?? ''))
+  if (!p) return 0
+
+  const alvo = new Date(p.ano, p.mes - 1, p.dia)
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  return Math.round((alvo.getTime() - hoje.getTime()) / 86_400_000)
+}
+
+export function rotuloPrazo(dias: number): string {
+  if (dias < -1) return `Há ${Math.abs(dias)} dias`
+  if (dias === -1) return 'Ontem'
+  if (dias === 0) return 'Hoje'
+  if (dias === 1) return 'Amanhã'
+  return `Em ${dias} dias`
+}
+
+const MOEDA = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  maximumFractionDigits: 0,
+})
+
+/** Valor em reais, sem centavos — no painel os centavos só poluem. */
+export function formatBRL(valor: number | null | undefined): string {
+  return MOEDA.format(valor ?? 0)
+}
+
+/** "2026-09" -> "set/26", para o eixo do gráfico de custo. */
+export function rotuloMes(chave: string): string {
+  const [ano, mes] = chave.split('-').map(Number)
+  const nome = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short' })
+  return `${nome.replace('.', '')}/${String(ano).slice(2)}`
+}

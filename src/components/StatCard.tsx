@@ -12,22 +12,46 @@ function Valor({ value }: { value: number | string }) {
   return <>{typeof value === 'number' ? contado : value}</>
 }
 
+/**
+ * `alerta` existe para os cartões que contam problema — pendência vencida,
+ * parto atrasado. Sem ele o número fica com o mesmo peso visual de um dado
+ * neutro, e o painel deixa de dizer o que precisa de atenção primeiro.
+ */
+export type Tom = 'neutro' | 'marca' | 'alerta'
+
+const FAIXA: Record<Tom, string> = {
+  neutro: '',
+  marca: 'bg-primary',
+  alerta: 'bg-destructive',
+}
+
+const NUMERO: Record<Tom, string> = {
+  neutro: '',
+  marca: 'text-primary',
+  alerta: 'text-destructive',
+}
+
 export function StatCard({
   value,
   label,
-  highlight,
+  tom = 'neutro',
+  detalhe,
 }: {
   value: number | string
   label: string
-  highlight?: boolean
+  tom?: Tom
+  /** Linha curta abaixo do rótulo, para qualificar o número. */
+  detalhe?: string
 }) {
   return (
     <div className="border-border bg-card relative overflow-hidden rounded-lg border p-4 shadow-sm">
-      {highlight && <span className="bg-primary absolute inset-y-0 left-0 w-0.5" />}
+      {tom !== 'neutro' && (
+        <span className={cn('absolute inset-y-0 left-0 w-0.5', FAIXA[tom])} />
+      )}
       <div
         className={cn(
           'numero-animado font-heading text-3xl font-extrabold tracking-tight',
-          highlight && 'text-primary',
+          NUMERO[tom],
         )}
       >
         <Valor value={value} />
@@ -35,6 +59,7 @@ export function StatCard({
       <div className="text-muted-foreground mt-1.5 text-[11px] tracking-wider uppercase">
         {label}
       </div>
+      {detalhe && <div className="text-muted-foreground mt-0.5 text-xs">{detalhe}</div>}
     </div>
   )
 }

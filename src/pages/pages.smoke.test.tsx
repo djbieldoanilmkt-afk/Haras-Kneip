@@ -64,6 +64,14 @@ vi.mock('@/lib/store', () => ({
       lactantes: 0,
       eventosProximos: [],
     }),
+    getPendenciasSanitarias: vi.fn().mockResolvedValue([]),
+    getPartosPrevistos: vi.fn().mockResolvedValue([]),
+    getResumoCustos: vi.fn().mockResolvedValue({
+      mesAtual: 0,
+      mesAnterior: 0,
+      porMes: [],
+      porAnimal: [],
+    }),
   },
 }))
 
