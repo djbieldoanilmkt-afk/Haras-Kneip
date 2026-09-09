@@ -100,7 +100,20 @@ export function SelectAnimal({
   return (
     <Select value={value} onValueChange={(v) => onValueChange(String(v ?? ''))}>
       <SelectTrigger id={id} className="h-9 w-full">
-        <SelectValue placeholder={placeholder} />
+        {/*
+          A funcao e obrigatoria aqui. Sem ela o Base UI imprime o proprio
+          valor no gatilho — e como o valor deste select e o id, aparecia o
+          UUID no lugar do nome do animal. No SelectSimples o problema nao
+          existe porque la o valor e o proprio texto da opcao.
+
+          Animal que saiu da lista (excluido enquanto o formulario estava
+          aberto) cai no placeholder, que e melhor do que exibir um id solto.
+        */}
+        <SelectValue placeholder={placeholder}>
+          {(selecionado) =>
+            animais.find((a) => a.id === selecionado)?.nome ?? placeholder
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {animais.map((a) => (
