@@ -10,9 +10,12 @@ import type { PartoPrevisto } from '@/lib/store'
 export function PartosPrevistos({
   partos,
   carregando,
+  limite = 6,
 }: {
   partos: PartoPrevisto[]
   carregando: boolean
+  /** No painel a lista e um resumo; na tela de Reproducao ela vai inteira. */
+  limite?: number
 }) {
   const atrasados = partos.filter((p) => diasAte(p.data_prevista_parto) < 0).length
 
@@ -38,7 +41,7 @@ export function PartosPrevistos({
         </p>
       ) : (
         <ul className="divide-border divide-y">
-          {partos.slice(0, 6).map((p) => {
+          {partos.slice(0, limite).map((p) => {
             const dias = diasAte(p.data_prevista_parto)
 
             return (

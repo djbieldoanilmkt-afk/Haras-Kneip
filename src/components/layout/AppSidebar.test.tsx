@@ -27,13 +27,15 @@ function renderEm(path: string, haras: Haras = HARAS) {
 }
 
 describe('AppSidebar', () => {
-  it('mostra os seis itens de navegacao', () => {
+  it('mostra os oito itens de navegacao', () => {
     renderEm('/painel')
     for (const rotulo of [
       'Painel',
       'Plantel',
-      'Calendário',
+      'Reprodução',
+      'Sanidade',
       'Financeiro',
+      'Calendário',
       'Relatórios',
       'Configurações',
     ]) {

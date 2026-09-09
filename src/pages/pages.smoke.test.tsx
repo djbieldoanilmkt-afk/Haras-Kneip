@@ -65,6 +65,10 @@ vi.mock('@/lib/store', () => ({
       eventosProximos: [],
     }),
     getPesagensResumo: vi.fn().mockResolvedValue([]),
+    getSaudeRegistrosPlantel: vi.fn().mockResolvedValue([]),
+    getReproducaoPlantel: vi.fn().mockResolvedValue([]),
+    createSaudeRegistro: vi.fn().mockResolvedValue({ id: 's1' }),
+    createReproducao: vi.fn().mockResolvedValue({ id: 'r1' }),
     getPendenciasSanitarias: vi.fn().mockResolvedValue([]),
     getPartosPrevistos: vi.fn().mockResolvedValue([]),
     getResumoCustos: vi.fn().mockResolvedValue({
@@ -87,6 +91,8 @@ import Perfil from './Perfil'
 import AnimalForm from './AnimalForm'
 import Calendario from './Calendario'
 import Financeiro from './Financeiro'
+import Sanidade from './Sanidade'
+import Reproducao from './Reproducao'
 import Relatorios from './Relatorios'
 import Configuracoes from './Configuracoes'
 import PlantelPublico from './PlantelPublico'
@@ -104,6 +110,20 @@ describe('smoke de renderizacao das paginas', () => {
     renderPage(<Financeiro />)
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Financeiro' })).toBeInTheDocument())
     expect(screen.getByText('Gasto no mês')).toBeInTheDocument()
+  })
+
+  it('Sanidade', async () => {
+    renderPage(<Sanidade />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Sanidade' })).toBeInTheDocument())
+    expect(screen.getByText('Vencendo agora')).toBeInTheDocument()
+  })
+
+  it('Reproducao', async () => {
+    renderPage(<Reproducao />)
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Reprodução' })).toBeInTheDocument(),
+    )
+    expect(screen.getByText('DG+ por cobertura')).toBeInTheDocument()
   })
 
   it('Plantel', async () => {

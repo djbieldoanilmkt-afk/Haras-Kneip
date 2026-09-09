@@ -34,9 +34,18 @@ const TEXTO: Record<Faixa, string> = {
 export function SemaforoSanitario({
   pendencias,
   carregando,
+  limite = 6,
+  titulo = 'Sanidade',
 }: {
   pendencias: PendenciaSanitaria[]
   carregando: boolean
+  /** No painel a lista e um resumo; na tela de Sanidade ela vai inteira. */
+  limite?: number
+  /**
+   * Na tela de Sanidade o titulo da pagina ja e "Sanidade", e repetir a
+   * palavra no cartao nao diz nada a quem esta lendo.
+   */
+  titulo?: string
 }) {
   const vencidas = pendencias.filter((p) => diasAte(p.proxima_data) < 0).length
 
@@ -45,7 +54,7 @@ export function SemaforoSanitario({
       <div className="mb-1 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <ShieldCheck className="size-4" />
-          Sanidade
+          {titulo}
         </h2>
         {!carregando && pendencias.length > 0 && (
           <span className="text-muted-foreground text-xs">
@@ -64,7 +73,7 @@ export function SemaforoSanitario({
         </p>
       ) : (
         <ul className="divide-border divide-y">
-          {pendencias.slice(0, 6).map((p) => {
+          {pendencias.slice(0, limite).map((p) => {
             const dias = diasAte(p.proxima_data)
             const faixa = faixaDoPrazo(dias)
 

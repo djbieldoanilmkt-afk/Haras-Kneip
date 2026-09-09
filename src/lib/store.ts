@@ -43,6 +43,9 @@ export type Stats = {
   eventosProximos: Evento[]
 }
 
+export type SaudeRegistroComAnimal = SaudeRegistro & { animal: string }
+export type ReproducaoComAnimal = Reproducao & { matriz: string }
+
 /** Vacina, vermífugo ou exame com data de retorno marcada e já no radar. */
 export type PendenciaSanitaria = {
   id: string
@@ -414,6 +417,44 @@ export const store = {
       lactantes: animais.filter((a) => a.status_reprodutivo === 'Lactante').length,
       eventosProximos: (eventosProximos ?? []) as Evento[],
     }
+  },
+
+  // ------------------------------------------- visões de haras inteiro
+  //
+  // getSaudeRegistros e getReproducao recebem um animal e servem ao perfil.
+  // Estas duas atendem as telas de Sanidade e Reprodução, que olham o plantel
+  // todo de uma vez.
+
+  async getSaudeRegistrosPlantel(meses = 12): Promise<SaudeRegistroComAnimal[]> {
+    const { data, error } = await supabase
+      .from('saude_registros')
+      .select('*, animais(nome)')
+      .gte('data_registro', inicioDoMes(-(meses - 1)))
+      .order('data_registro', { ascending: false })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const r = linha as unknown as SaudeRegistro & ComAnimal
+      return { ...r, animal: r.animais?.nome ?? 'Animal removido' }
+    })
+  },
+
+  async getReproducaoPlantel(meses = 12): Promise<ReproducaoComAnimal[]> {
+    const { data, error } = await supabase
+      .from('reproducao')
+      // Duas chaves apontam para `animais` (a matriz e a cria); ver
+      // getPartosPrevistos.
+      .select('*, animais!reproducao_animal_id_fkey(nome)')
+      .gte('data_evento', inicioDoMes(-(meses - 1)))
+      .order('data_evento', { ascending: false })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const r = linha as unknown as Reproducao & ComAnimal
+      return { ...r, matriz: r.animais?.nome ?? 'Animal removido' }
+    })
   },
 
   // ------------------------------------------------------------- pendências

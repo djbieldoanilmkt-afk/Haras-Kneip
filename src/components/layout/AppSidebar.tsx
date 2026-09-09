@@ -1,5 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, BookOpen, Calendar, LayoutDashboard, Settings, Wallet } from 'lucide-react'
+import {
+  BarChart3,
+  Baby,
+  BookOpen,
+  Calendar,
+  LayoutDashboard,
+  Settings,
+  ShieldCheck,
+  Wallet,
+} from 'lucide-react'
 
 import { Brand } from './Brand'
 import { useTenant } from '@/hooks/tenant'
@@ -9,8 +18,10 @@ import { cn } from '@/lib/utils'
 const NAV = [
   { to: '/painel', label: 'Painel', icon: LayoutDashboard },
   { to: '/catalogo', label: 'Plantel', icon: BookOpen },
-  { to: '/calendario', label: 'Calendário', icon: Calendar },
+  { to: '/reproducao', label: 'Reprodução', icon: Baby },
+  { to: '/sanidade', label: 'Sanidade', icon: ShieldCheck },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
+  { to: '/calendario', label: 'Calendário', icon: Calendar },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]

@@ -75,3 +75,40 @@ export function SelectSimples({
     </Select>
   )
 }
+
+/**
+ * Select de animal que guarda o id, e não o nome.
+ *
+ * O calendário resolve o animal procurando pelo nome escolhido, o que erra
+ * quando dois animais se chamam igual — e nome repetido acontece em haras,
+ * porque o afixo é o mesmo e o pré-nome se repete entre safras. Nas telas
+ * novas o valor do select já é o id.
+ */
+export function SelectAnimal({
+  value,
+  onValueChange,
+  animais,
+  placeholder = 'Selecione o animal...',
+  id,
+}: {
+  value: string
+  onValueChange: (id: string) => void
+  animais: readonly { id: string; nome: string }[]
+  placeholder?: string
+  id?: string
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onValueChange(String(v ?? ''))}>
+      <SelectTrigger id={id} className="h-9 w-full">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {animais.map((a) => (
+          <SelectItem key={a.id} value={a.id}>
+            {a.nome}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}

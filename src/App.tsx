@@ -23,6 +23,8 @@ const Perfil = lazy(() => import('@/pages/Perfil'))
 const AnimalForm = lazy(() => import('@/pages/AnimalForm'))
 const Calendario = lazy(() => import('@/pages/Calendario'))
 const Financeiro = lazy(() => import('@/pages/Financeiro'))
+const Sanidade = lazy(() => import('@/pages/Sanidade'))
+const Reproducao = lazy(() => import('@/pages/Reproducao'))
 const Relatorios = lazy(() => import('@/pages/Relatorios'))
 const Configuracoes = lazy(() => import('@/pages/Configuracoes'))
 const PlantelPublico = lazy(() => import('@/pages/PlantelPublico'))
@@ -86,6 +88,8 @@ export default function App() {
                 <Route path="/novo-animal" element={<AnimalForm />} />
                 <Route path="/editar-animal/:id" element={<AnimalForm />} />
                 <Route path="/calendario" element={<Calendario />} />
+                <Route path="/sanidade" element={<Sanidade />} />
+                <Route path="/reproducao" element={<Reproducao />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
