@@ -71,7 +71,11 @@ vi.mock('@/lib/store', () => ({
       mesAnterior: 0,
       porMes: [],
       porAnimal: [],
+      porCategoria: [],
     }),
+    getDespesas: vi.fn().mockResolvedValue([]),
+    createDespesa: vi.fn().mockResolvedValue({ id: 'd1' }),
+    deleteDespesa: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -81,6 +85,7 @@ import Catalogo from './Catalogo'
 import Perfil from './Perfil'
 import AnimalForm from './AnimalForm'
 import Calendario from './Calendario'
+import Financeiro from './Financeiro'
 import Relatorios from './Relatorios'
 import Configuracoes from './Configuracoes'
 import PlantelPublico from './PlantelPublico'
@@ -92,6 +97,12 @@ describe('smoke de renderizacao das paginas', () => {
     renderPage(<Dashboard />)
     await waitFor(() => expect(screen.getByText('Painel do Plantel')).toBeInTheDocument())
     expect(screen.getByText('Total de animais')).toBeInTheDocument()
+  })
+
+  it('Financeiro', async () => {
+    renderPage(<Financeiro />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Financeiro' })).toBeInTheDocument())
+    expect(screen.getByText('Gasto no mês')).toBeInTheDocument()
   })
 
   it('Plantel', async () => {

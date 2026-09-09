@@ -27,11 +27,23 @@ function renderEm(path: string, haras: Haras = HARAS) {
 }
 
 describe('AppSidebar', () => {
-  it('mostra os cinco itens de navegacao', () => {
+  it('mostra os seis itens de navegacao', () => {
     renderEm('/painel')
-    for (const rotulo of ['Painel', 'Plantel', 'Calendário', 'Relatórios', 'Configurações']) {
+    for (const rotulo of [
+      'Painel',
+      'Plantel',
+      'Calendário',
+      'Financeiro',
+      'Relatórios',
+      'Configurações',
+    ]) {
       expect(screen.getByRole('link', { name: new RegExp(rotulo) })).toBeInTheDocument()
     }
+  })
+
+  it('aponta o financeiro para /financeiro', () => {
+    renderEm('/painel')
+    expect(screen.getByRole('link', { name: /Financeiro/ })).toHaveAttribute('href', '/financeiro')
   })
 
   it('aponta o painel para /painel, nao para a raiz', () => {

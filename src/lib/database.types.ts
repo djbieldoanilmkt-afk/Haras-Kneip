@@ -163,3 +163,33 @@ export type AnimalResumo = {
   nome: string
   foto_url: string | null
 }
+
+/**
+ * Despesa do haras (005_despesas.sql). Diferente de saude_registros.custo,
+ * que só cobre o que passa pelo veterinário, aqui entra ração, ferrageamento,
+ * mão de obra e transporte — a maior parte do custo real.
+ */
+export type Despesa = {
+  id: string
+  haras_id: string
+  data: string
+  categoria: string
+  descricao: string
+  valor: number
+  fornecedor: string | null
+  observacoes: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+/**
+ * Uma linha por animal que divide a despesa. A soma das linhas de uma despesa
+ * é sempre igual ao valor dela — ver ratearCentavos em lib/dinheiro.ts.
+ */
+export type DespesaRateio = {
+  despesa_id: string
+  animal_id: string
+  haras_id: string
+  valor: number
+  created_at: string
+}

@@ -27,6 +27,7 @@ function queryStub(result: Resultado) {
     'insert',
     'update',
     'upsert',
+    'delete',
   ]
   for (const metodo of encadeaveis) {
     chain[metodo] = vi.fn(() => chain)
@@ -269,32 +270,148 @@ describe('getPartosPrevistos', () => {
   })
 })
 
+/**
+ * getResumoCustos consulta duas tabelas em paralelo, entao o mock precisa
+ * responder de acordo com a tabela pedida — devolver a mesma cadeia para as
+ * duas faria a consulta de despesas receber linhas de sanidade.
+ */
+function porTabela(mapa: Record<string, Resultado>) {
+  const cadeias: Record<string, ReturnType<typeof queryStub>> = {}
+  mockFrom.mockImplementation((tabela: string) => {
+    cadeias[tabela] ??= queryStub(mapa[tabela] ?? { data: [], error: null })
+    return cadeias[tabela]
+  })
+  return cadeias
+}
+
 describe('getResumoCustos', () => {
-  it('soma por mes e por animal, e ordena os animais do maior gasto para o menor', async () => {
-    mockFrom.mockReturnValue(
-      queryStub({
+  it('soma sanidade e despesas no mesmo mes', async () => {
+    porTabela({
+      saude_registros: {
         data: [
-          { custo: 100, data_registro: mesRelativo(0), animal_id: 'a1', animais: { nome: 'Aurora' } },
-          { custo: 50, data_registro: mesRelativo(0), animal_id: 'a1', animais: { nome: 'Aurora' } },
-          { custo: 300, data_registro: mesRelativo(0), animal_id: 'a2', animais: { nome: 'Vencedor' } },
-          { custo: 80, data_registro: mesRelativo(-1), animal_id: 'a1', animais: { nome: 'Aurora' } },
+          { custo: 200, data_registro: mesRelativo(0), animal_id: 'a1', animais: { nome: 'Aurora' } },
         ],
         error: null,
-      }),
-    )
+      },
+      despesas: {
+        data: [
+          {
+            valor: 1000,
+            data: mesRelativo(0),
+            categoria: 'Ração e suplemento',
+            despesa_rateios: [],
+          },
+        ],
+        error: null,
+      },
+    })
 
     const resumo = await store.getResumoCustos()
 
-    expect(resumo.mesAtual).toBe(450)
-    expect(resumo.mesAnterior).toBe(80)
+    expect(resumo.mesAtual).toBe(1200)
+  })
+
+  it('usa o valor da despesa no mes, e nao a soma dos rateios', async () => {
+    porTabela({
+      despesas: {
+        data: [
+          {
+            valor: 900,
+            data: mesRelativo(0),
+            categoria: 'Ração e suplemento',
+            despesa_rateios: [
+              { animal_id: 'a1', valor: 300, animais: { nome: 'Aurora' } },
+              { animal_id: 'a2', valor: 300, animais: { nome: 'Vencedor' } },
+              { animal_id: 'a3', valor: 300, animais: { nome: 'Brisa' } },
+            ],
+          },
+        ],
+        error: null,
+      },
+    })
+
+    const resumo = await store.getResumoCustos()
+
+    // Se somasse os rateios em vez do valor, daria 900 por coincidência aqui;
+    // o que o teste protege é o caminho: o mês conta a despesa uma vez só.
+    expect(resumo.mesAtual).toBe(900)
+    expect(resumo.porAnimal).toHaveLength(3)
+  })
+
+  it('conta despesa sem rateio no mes, mas nao no custo por animal', async () => {
+    porTabela({
+      despesas: {
+        data: [
+          { valor: 500, data: mesRelativo(0), categoria: 'Manutenção', despesa_rateios: [] },
+        ],
+        error: null,
+      },
+    })
+
+    const resumo = await store.getResumoCustos()
+
+    expect(resumo.mesAtual).toBe(500)
+    expect(resumo.porAnimal).toEqual([])
+  })
+
+  it('ordena os animais do maior gasto para o menor', async () => {
+    porTabela({
+      saude_registros: {
+        data: [
+          { custo: 100, data_registro: mesRelativo(0), animal_id: 'a1', animais: { nome: 'Aurora' } },
+        ],
+        error: null,
+      },
+      despesas: {
+        data: [
+          {
+            valor: 400,
+            data: mesRelativo(0),
+            categoria: 'Ferrageamento',
+            despesa_rateios: [
+              { animal_id: 'a1', valor: 100, animais: { nome: 'Aurora' } },
+              { animal_id: 'a2', valor: 300, animais: { nome: 'Vencedor' } },
+            ],
+          },
+        ],
+        error: null,
+      },
+    })
+
+    const resumo = await store.getResumoCustos()
+
     expect(resumo.porAnimal).toEqual([
       { animal_id: 'a2', animal: 'Vencedor', total: 300 },
-      { animal_id: 'a1', animal: 'Aurora', total: 230 },
+      { animal_id: 'a1', animal: 'Aurora', total: 200 },
+    ])
+  })
+
+  it('agrupa por categoria, com sanidade entrando como Veterinario', async () => {
+    porTabela({
+      saude_registros: {
+        data: [
+          { custo: 700, data_registro: mesRelativo(0), animal_id: 'a1', animais: { nome: 'Aurora' } },
+        ],
+        error: null,
+      },
+      despesas: {
+        data: [
+          { valor: 300, data: mesRelativo(0), categoria: 'Transporte', despesa_rateios: [] },
+        ],
+        error: null,
+      },
+    })
+
+    const resumo = await store.getResumoCustos()
+
+    expect(resumo.porCategoria).toEqual([
+      { categoria: 'Veterinário', total: 700 },
+      { categoria: 'Transporte', total: 300 },
     ])
   })
 
   it('semeia a janela inteira, para que mes sem gasto apareca como zero', async () => {
-    mockFrom.mockReturnValue(queryStub({ data: [], error: null }))
+    porTabela({})
 
     const resumo = await store.getResumoCustos(6)
 
@@ -305,17 +422,66 @@ describe('getResumoCustos', () => {
   })
 
   it('ignora lancamento fora da janela em vez de somar no mes errado', async () => {
-    mockFrom.mockReturnValue(
-      queryStub({
+    porTabela({
+      saude_registros: {
         data: [
           { custo: 999, data_registro: mesRelativo(-24), animal_id: 'a1', animais: { nome: 'Antigo' } },
         ],
         error: null,
-      }),
-    )
+      },
+    })
 
     const resumo = await store.getResumoCustos(6)
 
     expect(resumo.porMes.reduce((s, m) => s + m.total, 0)).toBe(0)
+  })
+})
+
+describe('createDespesa', () => {
+  it('grava so a despesa quando nenhum animal e escolhido', async () => {
+    const cadeias = porTabela({ despesas: { data: { id: 'd1' }, error: null } })
+
+    await store.createDespesa(
+      { data: '2026-09-09', categoria: 'Manutenção', descricao: 'Cerca', valor: 500 },
+      [],
+    )
+
+    expect(cadeias.despesas.insert).toHaveBeenCalled()
+    expect(mockFrom).not.toHaveBeenCalledWith('despesa_rateios')
+  })
+
+  it('divide o valor entre os animais em partes que somam o total', async () => {
+    const cadeias = porTabela({
+      despesas: { data: { id: 'd1' }, error: null },
+      despesa_rateios: { data: null, error: null },
+    })
+
+    await store.createDespesa(
+      { data: '2026-09-09', categoria: 'Ração e suplemento', descricao: 'Ração', valor: 1200 },
+      ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
+    )
+
+    const linhas = (cadeias.despesa_rateios.insert as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(linhas).toHaveLength(9)
+    // 1200 / 9 = 133,333...: arredondar cada parte perderia centavos.
+    const soma = linhas.reduce((s: number, l: { valor: number }) => s + Math.round(l.valor * 100), 0)
+    expect(soma).toBe(120_000)
+  })
+
+  it('apaga a despesa quando o rateio falha, para nao deixar meio lancamento', async () => {
+    const cadeias = porTabela({
+      despesas: { data: { id: 'd1' }, error: null },
+      despesa_rateios: { data: null, error: new Error('rateio falhou') },
+    })
+
+    await expect(
+      store.createDespesa(
+        { data: '2026-09-09', categoria: 'Ração e suplemento', descricao: 'Ração', valor: 100 },
+        ['a1'],
+      ),
+    ).rejects.toThrow('rateio falhou')
+
+    expect(cadeias.despesas.delete).toHaveBeenCalled()
+    expect(cadeias.despesas.eq).toHaveBeenCalledWith('id', 'd1')
   })
 })

@@ -55,3 +55,28 @@ export function validateEvento(data: {
   if (vazio(data.data_evento)) errors.data_evento = 'Data é obrigatória'
   return build(errors)
 }
+
+export function validateDespesa(data: {
+  categoria?: string | null
+  descricao?: string | null
+  data?: string | null
+  valor?: string | null
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (vazio(data.categoria)) errors.categoria = 'Categoria é obrigatória'
+  if (vazio(data.descricao)) errors.descricao = 'Descrição é obrigatória'
+  if (vazio(data.data)) errors.data = 'Data é obrigatória'
+
+  // O valor chega como texto do input. Campo vazio e texto não numérico são
+  // erros diferentes de "zero", e a mensagem precisa dizer qual dos três é.
+  if (vazio(data.valor)) {
+    errors.valor = 'Valor é obrigatório'
+  } else {
+    const numero = Number(String(data.valor).replace(',', '.'))
+    if (!Number.isFinite(numero)) errors.valor = 'Valor inválido'
+    else if (numero <= 0) errors.valor = 'Valor precisa ser maior que zero'
+  }
+
+  return build(errors)
+}

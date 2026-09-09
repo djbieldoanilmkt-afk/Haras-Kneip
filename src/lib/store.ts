@@ -9,11 +9,13 @@
  */
 
 import { supabase } from './supabase'
+import { paraCentavos, paraReais, ratearCentavos } from './dinheiro'
 import type {
   Animal,
   AnimalResumo,
   Anotacao,
   Configuracao,
+  Despesa,
   Evento,
   Genealogia,
   GenealogiaResumo,
@@ -61,12 +63,28 @@ export type PartoPrevisto = {
 
 export type CustoPorMes = { mes: string; total: number }
 export type CustoPorAnimal = { animal_id: string; animal: string; total: number }
+export type CustoPorCategoria = { categoria: string; total: number }
+
+export type RateioResumo = { animal_id: string; animal: string; valor: number }
+
+export type DespesaComRateio = Despesa & { rateios: RateioResumo[] }
+
+/** Campos que a tela preenche; o resto vem de default ou trigger. */
+export type NovaDespesa = {
+  data: string
+  categoria: string
+  descricao: string
+  valor: number
+  fornecedor?: string | null
+  observacoes?: string | null
+}
 
 export type ResumoCustos = {
   mesAtual: number
   mesAnterior: number
   porMes: CustoPorMes[]
   porAnimal: CustoPorAnimal[]
+  porCategoria: CustoPorCategoria[]
 }
 
 /**
@@ -459,20 +477,37 @@ export const store = {
   // ---------------------------------------------------------------- custos
 
   /**
-   * Custo declarado nos registros de sanidade, por mês e por animal.
+   * Custo do haras por mês, por animal e por categoria.
    *
-   * Hoje esta é a única fonte de valor no banco. Quando existir a tabela de
-   * despesas do haras, ela entra aqui somando — a forma do retorno já prevê
-   * isso e a tela não precisa mudar.
+   * Duas fontes somam aqui: o `custo` dos registros de sanidade (o que passa
+   * pelo veterinário) e a tabela `despesas` (ração, ferrageamento, mão de
+   * obra, transporte).
+   *
+   * No total do mês entra o valor da despesa, e não a soma dos rateios dela.
+   * Os dois números são iguais quando há rateio, mas despesa sem rateio — um
+   * gasto do haras que não se atribui a nenhum animal — precisa contar no mês
+   * mesmo assim. Ela aparece no mês e, corretamente, não aparece no custo por
+   * animal.
    */
   async getResumoCustos(meses = 6): Promise<ResumoCustos> {
-    const { data, error } = await supabase
-      .from('saude_registros')
-      .select('custo, data_registro, animal_id, animais(nome)')
-      .not('custo', 'is', null)
-      .gte('data_registro', inicioDoMes(-(meses - 1)))
+    const desde = inicioDoMes(-(meses - 1))
 
-    if (error) throw error
+    const [sanidade, despesas] = await Promise.all([
+      supabase
+        .from('saude_registros')
+        .select('custo, data_registro, animal_id, animais(nome)')
+        .not('custo', 'is', null)
+        .gte('data_registro', desde),
+      // Uma consulta só: a despesa traz os próprios rateios embutidos, então
+      // o total do mês e o custo por animal saem da mesma ida ao banco.
+      supabase
+        .from('despesas')
+        .select('valor, data, categoria, despesa_rateios(animal_id, valor, animais(nome))')
+        .gte('data', desde),
+    ])
+
+    if (sanidade.error) throw sanidade.error
+    if (despesas.error) throw despesas.error
 
     // Semeia todos os meses da janela com zero: mês sem gasto precisa aparecer
     // como zero, senão o gráfico pula o período e sugere um gasto contínuo que
@@ -481,23 +516,48 @@ export const store = {
     for (let i = meses - 1; i >= 0; i--) porMesMapa.set(chaveMes(inicioDoMes(-i)), 0)
 
     const porAnimalMapa = new Map<string, CustoPorAnimal>()
+    const porCategoriaMapa = new Map<string, number>()
 
-    for (const linha of data ?? []) {
-      const r = linha as unknown as SaudeRegistro & ComAnimal
-      const valor = Number(r.custo ?? 0)
-
-      const mes = chaveMes(r.data_registro)
+    const somaMes = (data: string, valor: number) => {
+      const mes = chaveMes(data)
       if (porMesMapa.has(mes)) porMesMapa.set(mes, (porMesMapa.get(mes) ?? 0) + valor)
+    }
 
-      const acumulado = porAnimalMapa.get(r.animal_id)
+    const somaAnimal = (animalId: string, nome: string | undefined, valor: number) => {
+      const acumulado = porAnimalMapa.get(animalId)
       if (acumulado) {
         acumulado.total += valor
       } else {
-        porAnimalMapa.set(r.animal_id, {
-          animal_id: r.animal_id,
-          animal: r.animais?.nome ?? 'Animal removido',
+        porAnimalMapa.set(animalId, {
+          animal_id: animalId,
+          animal: nome ?? 'Animal removido',
           total: valor,
         })
+      }
+    }
+
+    for (const linha of sanidade.data ?? []) {
+      const r = linha as unknown as SaudeRegistro & ComAnimal
+      const valor = Number(r.custo ?? 0)
+      somaMes(r.data_registro, valor)
+      somaAnimal(r.animal_id, r.animais?.nome, valor)
+      porCategoriaMapa.set('Veterinário', (porCategoriaMapa.get('Veterinário') ?? 0) + valor)
+    }
+
+    for (const linha of despesas.data ?? []) {
+      const d = linha as unknown as {
+        valor: number
+        data: string
+        categoria: string
+        despesa_rateios: ({ animal_id: string; valor: number } & ComAnimal)[] | null
+      }
+      const valor = Number(d.valor ?? 0)
+
+      somaMes(d.data, valor)
+      porCategoriaMapa.set(d.categoria, (porCategoriaMapa.get(d.categoria) ?? 0) + valor)
+
+      for (const rateio of d.despesa_rateios ?? []) {
+        somaAnimal(rateio.animal_id, rateio.animais?.nome, Number(rateio.valor ?? 0))
       }
     }
 
@@ -506,7 +566,75 @@ export const store = {
       mesAnterior: porMesMapa.get(chaveMes(inicioDoMes(-1))) ?? 0,
       porMes: [...porMesMapa].map(([mes, total]) => ({ mes, total })),
       porAnimal: [...porAnimalMapa.values()].sort((a, b) => b.total - a.total),
+      porCategoria: [...porCategoriaMapa]
+        .map(([categoria, total]) => ({ categoria, total }))
+        .sort((a, b) => b.total - a.total),
     }
+  },
+
+  // -------------------------------------------------------------- despesas
+
+  async getDespesas(meses = 6): Promise<DespesaComRateio[]> {
+    const { data, error } = await supabase
+      .from('despesas')
+      .select('*, despesa_rateios(animal_id, valor, animais(nome))')
+      .gte('data', inicioDoMes(-(meses - 1)))
+      .order('data', { ascending: false })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const d = linha as unknown as Despesa & {
+        despesa_rateios: ({ animal_id: string; valor: number } & ComAnimal)[] | null
+      }
+      return {
+        ...d,
+        rateios: (d.despesa_rateios ?? []).map((r) => ({
+          animal_id: r.animal_id,
+          animal: r.animais?.nome ?? 'Animal removido',
+          valor: Number(r.valor ?? 0),
+        })),
+      }
+    })
+  },
+
+  /**
+   * Grava a despesa e, se houver animais escolhidos, o rateio em partes que
+   * somam exatamente o valor.
+   *
+   * Não é uma transação: o PostgREST não abre uma que abranja duas tabelas.
+   * Por isso, se o rateio falhar, a despesa recém-criada é apagada. Deixá-la
+   * viva seria pior do que o erro — ela contaria no total do mês e sumiria do
+   * custo por animal, e quem lançou acharia que atribuiu. O jeito definitivo
+   * é mover as duas escritas para uma função no banco.
+   */
+  async createDespesa(dados: NovaDespesa, animaisIds: string[] = []): Promise<Despesa> {
+    const { data, error } = await supabase.from('despesas').insert([dados]).select().single()
+    if (error) throw error
+
+    const criada = data as Despesa
+    if (animaisIds.length === 0) return criada
+
+    const partes = ratearCentavos(paraCentavos(dados.valor), animaisIds.length)
+    const linhas = animaisIds.map((animal_id, i) => ({
+      despesa_id: criada.id,
+      animal_id,
+      valor: paraReais(partes[i]),
+    }))
+
+    const { error: erroRateio } = await supabase.from('despesa_rateios').insert(linhas)
+    if (erroRateio) {
+      await supabase.from('despesas').delete().eq('id', criada.id)
+      throw erroRateio
+    }
+
+    return criada
+  },
+
+  /** O rateio cai junto: a chave estrangeira é `on delete cascade`. */
+  async deleteDespesa(id: string): Promise<void> {
+    const { error } = await supabase.from('despesas').delete().eq('id', id)
+    if (error) throw error
   },
 
   // -------------------------------------------------------- configuracoes
