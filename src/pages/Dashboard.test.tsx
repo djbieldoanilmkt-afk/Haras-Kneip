@@ -58,6 +58,7 @@ const PLANTEL = vi.hoisted(() => {
     observacoes: null,
     em_destaque: false,
     ativo: true,
+    externo: false,
     created_at: '2024-01-01',
     updated_at: null,
   }

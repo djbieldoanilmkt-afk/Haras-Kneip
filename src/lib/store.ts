@@ -164,8 +164,18 @@ export function chaveMes(data: string): string {
 export const store = {
   // ---------------------------------------------------------------- animais
 
+  /**
+   * O plantel — sem os ancestrais de fora.
+   *
+   * `externo` marca um animal que existe só para fechar a árvore genealógica:
+   * o garanhão de outro haras que cobriu a égua. Ele precisa existir como
+   * registro para a árvore apontar para ele, mas não é do plantel, e contá-lo
+   * inflaria o total, o limite do plano e as estatísticas.
+   *
+   * Quem PRECISA vê-lo é getAnimaisMap, que resolve os nomes da árvore.
+   */
   async getAnimais(filters: AnimalFilters = {}): Promise<Animal[]> {
-    let query = supabase.from('animais').select('*').eq('ativo', true)
+    let query = supabase.from('animais').select('*').eq('ativo', true).eq('externo', false)
 
     if (filters.sexo) query = query.eq('sexo', filters.sexo)
     if (filters.status_reprodutivo) {
@@ -272,10 +282,23 @@ export const store = {
     }
   },
 
+  /**
+   * Mapa id -> nome usado para resolver a árvore genealógica.
+   *
+   * Consulta própria, e NÃO getAnimais: aqui os externos precisam entrar. Eles
+   * são justamente os ancestrais de outros haras, e sem eles no mapa a árvore
+   * mostraria o quadrinho do garanhão em branco — que é o caso mais comum,
+   * porque o garanhão quase nunca é do plantel de quem cadastrou.
+   */
   async getAnimaisMap(): Promise<Record<string, AnimalResumo>> {
-    const animais = await this.getAnimais()
+    const { data, error } = await supabase
+      .from('animais')
+      .select('id, nome, foto_url')
+      .eq('ativo', true)
+    if (error) throw error
+
     const mapa: Record<string, AnimalResumo> = {}
-    for (const a of animais) {
+    for (const a of (data ?? []) as Animal[]) {
       mapa[a.id] = { nome: a.nome, foto_url: a.foto_url }
     }
     return mapa

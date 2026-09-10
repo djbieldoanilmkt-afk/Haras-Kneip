@@ -630,3 +630,29 @@ describe('salvarTelefone', () => {
     await expect(store.salvarTelefone('+5531999998888')).rejects.toThrow('Sessão expirada.')
   })
 })
+
+describe('externos fora do plantel', () => {
+  it('a lista do plantel exclui ancestrais de fora', async () => {
+    const chain = queryStub({ data: [], error: null })
+    mockFrom.mockReturnValue(chain)
+
+    await store.getAnimais()
+
+    // Sem este filtro, o garanhao de outro haras entraria no total, no limite
+    // do plano e nas estatisticas da vitrine.
+    expect(chain.eq).toHaveBeenCalledWith('externo', false)
+  })
+
+  it('o mapa da arvore INCLUI os externos', async () => {
+    const chain = queryStub({ data: [], error: null })
+    mockFrom.mockReturnValue(chain)
+
+    await store.getAnimaisMap()
+
+    // O garanhao quase nunca e do plantel; filtra-lo deixaria o quadrinho da
+    // arvore em branco justamente no caso mais comum.
+    const filtros = (chain.eq as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])
+    expect(filtros).toContain('ativo')
+    expect(filtros).not.toContain('externo')
+  })
+})

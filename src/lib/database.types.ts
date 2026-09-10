@@ -119,6 +119,12 @@ export type Animal = {
   observacoes: string | null
   em_destaque: boolean | null
   ativo: boolean
+  /**
+   * Existe só para fechar a árvore genealógica — tipicamente o garanhão de
+   * outro haras. Não é do plantel: fica fora das listas, das estatísticas e
+   * do limite do plano, mas aparece na árvore.
+   */
+  externo: boolean
   created_at: string
   updated_at: string | null
 }

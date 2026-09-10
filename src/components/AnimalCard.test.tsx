@@ -26,6 +26,7 @@ const base: Animal = {
   observacoes: null,
   em_destaque: true,
   ativo: true,
+  externo: false,
   created_at: '2024-01-01',
   updated_at: null,
 }
