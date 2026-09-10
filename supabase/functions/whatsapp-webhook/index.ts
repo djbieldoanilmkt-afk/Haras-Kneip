@@ -32,6 +32,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const OPENROUTER_KEY = Deno.env.get('OPENROUTER_KEY')!
 const MODELO = Deno.env.get('OPENROUTER_MODELO') ?? 'google/gemini-2.5-flash'
 const MODELO_AUDIO = Deno.env.get('OPENROUTER_MODELO_AUDIO') ?? 'openai/whisper-large-v3-turbo'
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://haras-kneip.vercel.app').replace(/\/+$/, '')
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -51,6 +52,10 @@ const NL = '\n'
 
 type Dados = Record<string, unknown>
 
+/** O plantel como o modelo o enxerga. Sexo e status entram para ele conseguir
+ *  transformar "as éguas" ou "as prenhas" numa lista de ids. */
+type Cavalo = { id: string; nome: string; sexo: string; status: string }
+
 /** Campos sem os quais não dá para gravar. O resto entra depois, pela tela. */
 const OBRIGATORIOS: Record<string, string[]> = {
   cadastrar_animal: ['nome', 'sexo'],
@@ -58,6 +63,9 @@ const OBRIGATORIOS: Record<string, string[]> = {
   lancar_despesa: ['categoria', 'descricao', 'valor'],
   lancar_pesagem: ['animal_id', 'peso'],
   lancar_reproducao: ['animal_id', 'tipo'],
+  lancar_anotacao: ['animal_id', 'conteudo'],
+  lancar_evento: ['titulo', 'data'],
+  lancar_sanidade_lote: ['animais', 'tipo'],
   // Aqui basta UM dos dois; a regra "pelo menos um" é conferida no fluxo.
   definir_pais: ['animal_id'],
 }
@@ -71,6 +79,10 @@ const PERGUNTA: Record<string, string> = {
   descricao: 'uma *descrição curta*',
   valor: 'o *valor* em reais',
   peso: 'o *peso* em quilos',
+  conteudo: 'o *que você quer anotar*',
+  titulo: 'o *título* do compromisso',
+  data: 'a *data*',
+  animais: '*quais animais* entram',
 }
 
 /** Formulário numerado. Saber a ordem torna o áudio corrido legível. */
@@ -148,16 +160,25 @@ const AJUDA = [
   '',
   '*Para registrar*, é só falar:',
   '• _"Vacinei a Estrela contra influenza hoje"_',
+  '• _"Vermifuguei o lote todo, 40 reais cada"_',
   '• _"A Brisa pesou 420 quilos"_',
   '• _"Cobri a Aurora com o Imperador ontem"_',
   '• _"Cadastra uma potra nova"_ (eu mando o formulário)',
+  '• _"Anota que a Aurora está mancando da mão direita"_',
+  '• _"Marca o veterinário para sexta"_',
   '',
   '*Para perguntar:*',
+  '• _"Me mostra a ficha da Estrela"_',
   '• _"Quais éguas estão prenhas?"_',
   '• _"O que vence nos próximos 30 dias?"_',
   '• _"Quanto gastei com vacina na Aurora?"_',
+  '• _"Manda o link da vitrine"_',
   '',
-  '📸 Mande a *foto* de um animal que eu anexo à ficha dele.',
+  '📸 Mande a *foto* de um animal que eu anexo à ficha — ou peça _"mostra a foto da Aurora"_.',
+  '',
+  '↩️ Errou? Diga _"apaga o último"_ que eu mostro o que foi e pergunto antes.',
+  '',
+  '☀️ Todo dia de manhã eu aviso o que vence e o que está atrasado.',
   '',
   'Antes de gravar eu sempre confirmo. Responda *sim* ou *não*.',
 ].join('\n')
@@ -173,6 +194,23 @@ async function enviar(instancia: string, numero: string, texto: string) {
     // Falha ao responder não pode derrubar o webhook: a Evolution reenviaria o
     // mesmo evento e o efeito no banco aconteceria duas vezes.
   })
+}
+
+/** Manda a foto do animal de volta, com legenda. */
+async function enviarImagem(instancia: string, numero: string, url: string, legenda: string) {
+  const r = await fetch(`${EVOLUTION_URL}/message/sendMedia/${instancia}`, {
+    method: 'POST',
+    headers: { apikey: EVOLUTION_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      number: numero,
+      mediatype: 'image',
+      media: url,
+      caption: legenda,
+    }),
+  }).catch(() => null)
+
+  // Se a imagem não for, pelo menos o link vai: melhor um link do que silêncio.
+  if (!r?.ok) await enviar(instancia, numero, `${legenda}${NL}${url}`)
 }
 
 /**
@@ -216,7 +254,7 @@ async function transcrever(base64: string, mime: string): Promise<string> {
   return (d.text ?? '').trim()
 }
 
-function instrucoes(plantel: { id: string; nome: string }[], veFinanceiro: boolean): string {
+function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
   return [
     'Você é o assistente de um haras de Mangalarga Marchador, no Brasil.',
     'Lê mensagens de voz transcritas e texto informal de quem trabalha no campo.',
@@ -230,12 +268,19 @@ function instrucoes(plantel: { id: string; nome: string }[], veFinanceiro: boole
     '- lancar_pesagem: animal_id, peso, data, observacoes',
     '- lancar_reproducao: animal_id, tipo, data, garanhao, metodo, data_prevista_parto',
     '- definir_pais: animal_id, pai (NOME do pai), mae (NOME da mãe)',
+    '- lancar_anotacao: animal_id, titulo, conteudo, data — observação solta sobre um animal',
+    '- lancar_evento: titulo, tipo, data, animal_id, descricao — compromisso do calendário',
+    '- lancar_sanidade_lote: animais (LISTA de ids), tipo, descricao, data, proxima_data, custo',
     veFinanceiro
       ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids)'
       : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_despesa)',
     '- consultar_custos: animal_id, desde, ate, termo',
     '- consultar_animais: status, local, termo',
     '- consultar_agenda: dias',
+    '- consultar_ficha: animal_id — resumo completo de UM animal',
+    '- consultar_vitrine: link público do plantel, para mandar a compradores',
+    '- mostrar_foto: animal_id — a pessoa quer VER a foto do animal',
+    '- desfazer: apagar o último lançamento (errei, apaga isso, cancela o que lancei)',
     '- confirmar: a pessoa concorda (sim, isso, pode lançar)',
     '- cancelar: desiste ou corrige (não, cancela, deixa pra lá)',
     '- ajuda: pergunta o que você faz',
@@ -250,9 +295,17 @@ function instrucoes(plantel: { id: string; nome: string }[], veFinanceiro: boole
     '5. Se ela pedir uma ação sem dar dado nenhum, devolva a ação com dados vazios.',
     '6. Em definir_pais, `pai` e `mae` são NOMES em texto, não ids: o ancestral',
     '   pode ser de outro haras e não estar na lista.',
+    '7. `cancelar` é largar o que está sendo preenchido AGORA, antes de gravar.',
+    '   `desfazer` é apagar algo que JÁ foi gravado. "Não, deixa pra lá" no meio',
+    '   de um cadastro é cancelar; "apaga aquela vacina que lancei" é desfazer.',
+    '8. Em lancar_sanidade_lote, `animais` é uma lista de ids. "Todos", "o lote',
+    '   inteiro", "as éguas" viram a lista correspondente da relação abaixo.',
+    '   Para UM animal só, use lancar_sanidade, não o lote.',
     '',
-    'Animais deste haras:',
-    plantel.map((a) => `${a.id} = ${a.nome}`).join('\n') || '(nenhum ainda)',
+    'Animais deste haras (id = nome · sexo · status):',
+    plantel
+      .map((a) => `${a.id} = ${a.nome} · ${a.sexo}${a.status ? ` · ${a.status}` : ''}`)
+      .join('\n') || '(nenhum ainda)',
   ].join('\n')
 }
 
@@ -260,7 +313,7 @@ type Leitura = { acao: string; dados: Dados; observacao?: string }
 
 async function entender(
   texto: string,
-  plantel: { id: string; nome: string }[],
+  plantel: Cavalo[],
   veFinanceiro: boolean,
   pendente: { acao: string; dados: Dados } | null,
 ): Promise<Leitura> {
@@ -313,19 +366,23 @@ const dia = (v: unknown) => {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s
 }
 
-function faltando(acao: string, dados: Dados): string[] {
-  return (OBRIGATORIOS[acao] ?? []).filter((c) => {
-    const v = dados[c]
-    return v === undefined || v === null || v === ''
-  })
+function vazioMesmo(v: unknown): boolean {
+  // Lista vazia conta como ausente: um lote com zero animais passaria por
+  // "preenchido" e gravaria nada, dizendo que gravou.
+  if (Array.isArray(v)) return v.length === 0
+  return v === undefined || v === null || v === ''
 }
 
-function nomeDoAnimal(plantel: { id: string; nome: string }[], id: unknown): string {
+function faltando(acao: string, dados: Dados): string[] {
+  return (OBRIGATORIOS[acao] ?? []).filter((c) => vazioMesmo(dados[c]))
+}
+
+function nomeDoAnimal(plantel: Cavalo[], id: unknown): string {
   return plantel.find((a) => a.id === id)?.nome ?? 'animal'
 }
 
 /** O resumo que a pessoa confirma. É a última barreira antes de gravar. */
-function resumo(acao: string, d: Dados, plantel: { id: string; nome: string }[]): string {
+function resumo(acao: string, d: Dados, plantel: Cavalo[]): string {
   const linhas: string[] = []
 
   if (acao === 'cadastrar_animal') {
@@ -357,6 +414,35 @@ function resumo(acao: string, d: Dados, plantel: { id: string; nome: string }[])
     if (animais.length > 0) {
       const cada = Number(d.valor ?? 0) / animais.length
       linhas.push(`🐴 Rateado entre ${animais.length} — ${dinheiro(cada)} cada`)
+    }
+  }
+
+  if (acao === 'lancar_anotacao') {
+    linhas.push('📝 *Anotação* — ' + `*${nomeDoAnimal(plantel, d.animal_id)}*`, '')
+    if (d.titulo) linhas.push(`*${d.titulo}*`)
+    linhas.push(String(d.conteudo ?? ''))
+    if (d.data) linhas.push(`📅 ${dia(d.data)}`)
+  } else if (acao === 'lancar_evento') {
+    linhas.push('📅 *Compromisso no calendário*', '', `*${d.titulo}*`)
+    linhas.push(`📅 ${dia(d.data)}`)
+    if (d.tipo) linhas.push(`🏷️ ${d.tipo}`)
+    if (d.animal_id) linhas.push(`🐴 ${nomeDoAnimal(plantel, d.animal_id)}`)
+    if (d.descricao) linhas.push(`📝 ${d.descricao}`)
+  } else if (acao === 'lancar_sanidade_lote') {
+    const ids = (d.animais as string[]) ?? []
+    linhas.push('💉 *Sanidade em lote*', '', `${d.tipo} — *${ids.length} animais*`)
+    /*
+      Os nomes vão na íntegra, um por linha.
+
+      Um lote erra em silêncio: "confirma para 9 animais?" some com o animal
+      escolhido por engano no meio do número. Quem lê os nomes vê o intruso.
+    */
+    linhas.push('', ...ids.map((id) => `• ${nomeDoAnimal(plantel, id)}`))
+    if (d.descricao) linhas.push('', `📝 ${d.descricao}`)
+    linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
+    if (d.proxima_data) linhas.push(`🔁 Repete em ${dia(d.proxima_data)}`)
+    if (d.custo) {
+      linhas.push(`💰 ${dinheiro(d.custo)} por animal — total ${dinheiro(Number(d.custo) * ids.length)}`)
     }
   }
 
@@ -475,6 +561,62 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
     return { mensagem: '✅ Evento reprodutivo lançado.' }
   }
 
+  if (acao === 'lancar_anotacao') {
+    const { error } = await supabase.rpc('agente_lancar_anotacao', {
+      p_user: user,
+      p_animal: d.animal_id,
+      p_titulo: d.titulo ?? null,
+      p_conteudo: d.conteudo,
+      p_data: d.data ?? hoje,
+    })
+    if (error) throw new Error(error.message)
+    return { mensagem: '✅ Anotação salva na ficha do animal.' }
+  }
+
+  if (acao === 'lancar_evento') {
+    const { error } = await supabase.rpc('agente_lancar_evento', {
+      p_user: user,
+      p_titulo: d.titulo,
+      p_tipo: d.tipo ?? 'Outro',
+      p_data: d.data,
+      p_animal: d.animal_id ?? null,
+      p_descricao: d.descricao ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return { mensagem: '✅ Marcado no calendário.' }
+  }
+
+  if (acao === 'lancar_sanidade_lote') {
+    const { data: quantos, error } = await supabase.rpc('agente_lancar_sanidade_lote', {
+      p_user: user,
+      p_animais: d.animais,
+      p_tipo: d.tipo,
+      p_descricao: d.descricao ?? '',
+      p_data: d.data ?? hoje,
+      p_proxima_data: d.proxima_data ?? null,
+      p_custo: d.custo ?? null,
+      p_veterinario: d.veterinario ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return { mensagem: `✅ Lançado para *${quantos} animais*.` }
+  }
+
+  if (acao === 'desfazer') {
+    const { error } = await supabase.rpc('agente_excluir', {
+      p_user: user,
+      p_tabela: d.tabela,
+      p_id: d.id,
+    })
+    if (error) throw new Error(error.message)
+    return {
+      mensagem: [
+        '🗑️ Apagado.',
+        '',
+        '_Não sumiu de vez: dá para restaurar no sistema, em Configurações._',
+      ].join(NL),
+    }
+  }
+
   if (acao === 'lancar_despesa') {
     const { error } = await supabase.rpc('agente_lancar_despesa', {
       p_user: user,
@@ -492,7 +634,62 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
   throw new Error('Ação desconhecida.')
 }
 
-async function consultar(acao: string, user: string, d: Dados): Promise<string> {
+async function consultar(acao: string, user: string, d: Dados, harasId: string): Promise<string> {
+  if (acao === 'consultar_ficha') {
+    if (!d.animal_id) return 'De qual animal você quer a ficha? Me diga o nome dele.'
+
+    const { data, error } = await supabase.rpc('agente_ficha_animal', {
+      p_user: user,
+      p_animal: d.animal_id,
+    })
+    if (error) throw new Error(error.message)
+    const f = data as Dados | null
+    if (!f) return 'Não achei esse animal.'
+
+    const linhas = [`🐴 *${f.nome}*`, '']
+    const ident = [f.sexo, f.pelagem, f.marcha].filter(Boolean).join(' · ')
+    if (ident) linhas.push(ident)
+    if (f.nascimento) linhas.push(`📅 Nasceu em ${dia(f.nascimento)}`)
+    if (f.status) linhas.push(`💕 ${f.status}`)
+    if (f.local) linhas.push(`📍 ${f.local}`)
+    if (f.registro) linhas.push(`📄 ABCCMM ${f.registro}`)
+
+    const pai = f.pai ? `🐎 Pai: ${f.pai}` : null
+    const mae = f.mae ? `🐴 Mãe: ${f.mae}` : null
+    if (pai || mae) linhas.push('', ...[pai, mae].filter(Boolean) as string[])
+
+    const peso = f.peso as Dados | null
+    if (peso?.kg) linhas.push('', `⚖️ ${peso.kg} kg _(${dia(peso.quando)})_`)
+
+    const prox = f.proxima_sanidade as Dados | null
+    if (prox?.tipo) linhas.push(`💉 Próxima: ${prox.tipo} em ${dia(prox.quando)}`)
+
+    // O custo só aparece para quem pode ver dinheiro — a própria função do
+    // banco devolve nulo para os outros papéis.
+    if (f.custo_total !== null && f.custo_total !== undefined) {
+      linhas.push('', `💰 Já custou ${dinheiro(f.custo_total)}`)
+    }
+
+    return linhas.join('\n')
+  }
+
+  if (acao === 'consultar_vitrine') {
+    const { data: haras } = await supabase
+      .from('haras')
+      .select('slug, nome')
+      .eq('id', harasId)
+      .maybeSingle()
+    if (!haras?.slug) return 'Esse haras ainda não tem vitrine publicada.'
+
+    return [
+      `🌐 *Vitrine de ${haras.nome}*`,
+      '',
+      `${SITE_URL}/#/plantel/${haras.slug}`,
+      '',
+      '_Pode mandar esse link para comprador. Aparecem só os animais marcados como destaque._',
+    ].join('\n')
+  }
+
   if (acao === 'consultar_custos') {
     const { data, error } = await supabase.rpc('agente_consulta_custos', {
       p_user: user,
@@ -712,9 +909,11 @@ Deno.serve(async (req) => {
   const veFinanceiro = membro.papel === 'dono' || membro.papel === 'gerente'
 
   const { data: plantelBruto } = await supabase.rpc('agente_plantel', { p_user: user })
-  const plantel = ((plantelBruto ?? []) as Dados[]).map((a) => ({
+  const plantel: Cavalo[] = ((plantelBruto ?? []) as Dados[]).map((a) => ({
     id: String(a.id),
     nome: String(a.nome),
+    sexo: String(a.sexo ?? ''),
+    status: String(a.status ?? ''),
   }))
 
   const { data: pendenteBruto } = await supabase
@@ -735,7 +934,11 @@ Deno.serve(async (req) => {
       Sem nenhum dos três, pergunta — anexar no animal errado é pior que
       perguntar.
     */
-    let alvo = plantel.find((a) => texto && a.nome.toLowerCase().includes(texto.toLowerCase()))
+    // Só id e nome importam aqui — o último cadastrado vem de outra consulta,
+    // que não traz sexo nem status.
+    let alvo: { id: string; nome: string } | undefined = plantel.find(
+      (a) => texto && a.nome.toLowerCase().includes(texto.toLowerCase()),
+    )
 
     if (!alvo && pendente?.dados) {
       const id = (pendente.dados as Dados).animal_id
@@ -822,9 +1025,83 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  if (leitura.acao === 'mostrar_foto') {
+    const alvo = plantel.find((a) => a.id === leitura.dados.animal_id)
+    if (!alvo) {
+      await enviar(instancia, numero, 'De qual animal você quer ver a foto?')
+      return new Response('ok')
+    }
+
+    const { data: ficha, error: erroFicha } = await supabase.rpc('agente_ficha_animal', {
+      p_user: user,
+      p_animal: alvo.id,
+    })
+    // Sem isto, uma falha na consulta viraria "esse animal não tem foto" — uma
+    // resposta tranquila para um erro, que ninguém iria investigar.
+    if (erroFicha) {
+      await enviar(instancia, numero, `❌ Não consegui buscar a ficha: ${erroFicha.message}`)
+      return new Response('ok')
+    }
+
+    // `foto_url` vazio existe no banco; string vazia aqui é o mesmo que sem foto.
+    const foto = (ficha as Dados | null)?.foto
+
+    if (foto) await enviarImagem(instancia, numero, String(foto), `🐴 *${alvo.nome}*`)
+    else {
+      await enviar(
+        instancia,
+        numero,
+        `*${alvo.nome}* ainda não tem foto.${NL}${NL}📸 Manda uma aqui que eu anexo à ficha.`,
+      )
+    }
+    return new Response('ok')
+  }
+
+  /*
+    Desfazer é o único caminho que APAGA, então ele mostra o que achou e espera
+    o "sim" — nunca apaga na primeira frase. "Errei" dito no meio do curral não
+    pode custar um lançamento sem a pessoa ver qual.
+  */
+  if (leitura.acao === 'desfazer') {
+    const { data: ultimoBruto } = await supabase.rpc('agente_ultimo_lancamento', { p_user: user })
+    const ultimo = (Array.isArray(ultimoBruto) ? ultimoBruto[0] : null) as Dados | null
+
+    if (!ultimo) {
+      await enviar(instancia, numero, 'Não achei nenhum lançamento seu para apagar.')
+      return new Response('ok')
+    }
+
+    await supabase.from('intencoes').upsert(
+      {
+        haras_id: harasId,
+        user_id: user,
+        telefone: numero,
+        acao: 'desfazer',
+        dados: { tabela: ultimo.tabela, id: ultimo.id },
+        faltando: [],
+        estado: 'aguardando_confirmacao',
+        expira_em: new Date(Date.now() + 30 * 60_000).toISOString(),
+      },
+      { onConflict: 'telefone' },
+    )
+
+    await enviar(
+      instancia,
+      numero,
+      [
+        '🗑️ *Apagar este lançamento?*',
+        '',
+        String(ultimo.descricao),
+        '',
+        'Responda *sim* para apagar, ou *não* para deixar como está.',
+      ].join(NL),
+    )
+    return new Response('ok')
+  }
+
   if (leitura.acao.startsWith('consultar_')) {
     try {
-      await enviar(instancia, numero, await consultar(leitura.acao, user, leitura.dados))
+      await enviar(instancia, numero, await consultar(leitura.acao, user, leitura.dados, harasId))
     } catch (e) {
       await enviar(instancia, numero, `❌ Não consegui consultar: ${e instanceof Error ? e.message : 'erro'}`)
     }
@@ -847,7 +1124,7 @@ Deno.serve(async (req) => {
     É o caminho de quem não sabe o que o sistema precisa. Quem já mandou algum
     dado pula direto para a cobrança do que faltou.
   */
-  const vazio = Object.values(dadosAtuais).every((v) => v === undefined || v === null || v === '')
+  const vazio = Object.values(dadosAtuais).every(vazioMesmo)
   if (vazio && ROTEIRO[leitura.acao]) {
     await supabase.from('intencoes').upsert(
       {
