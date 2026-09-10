@@ -1,5 +1,14 @@
-import { useState } from 'react'
-import { BadgeCheck, KeyRound, MailPlus, MessageCircle, Trash2, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  BadgeCheck,
+  KeyRound,
+  Loader2,
+  MailPlus,
+  MessageCircle,
+  Trash2,
+  Unlink,
+  Users,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Campo, SelectSimples } from '@/components/form/Campo'
@@ -12,6 +21,7 @@ import { useTenant } from '@/hooks/tenant'
 import { store } from '@/lib/store'
 import { PLANOS } from '@/lib/planos'
 import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
+import { formatDate } from '@/lib/format'
 import type { MembroEquipe } from '@/lib/database.types'
 import { cn } from '@/lib/utils'
 
@@ -54,6 +64,54 @@ function PainelWhatsApp({
   const [salvando, setSalvando] = useState(false)
   const [pin, setPin] = useState('')
   const [gerando, setGerando] = useState(false)
+
+  /*
+    Enquanto o PIN está à mostra, a tela pergunta ao servidor de tempos em
+    tempos se já confirmou.
+
+    A confirmação acontece no WhatsApp, não aqui — o navegador não tem como
+    saber que a mensagem chegou. Sem esta consulta, o status ficaria em "não
+    verificado" até alguém recarregar a página na mão.
+
+    Para quando confirma, quando o painel fecha, e depois de ~4 minutos: aba
+    esquecida aberta não fica batendo no servidor para sempre.
+  */
+  useEffect(() => {
+    if (!pin || membro.verificado_em) return
+
+    let restantes = 60
+    const timer = setInterval(() => {
+      restantes -= 1
+      if (restantes <= 0) clearInterval(timer)
+      else aoMudar()
+    }, 4000)
+
+    return () => clearInterval(timer)
+  }, [pin, membro.verificado_em, aoMudar])
+
+  // Confirmou: o PIN não serve mais para nada e sai da tela.
+  useEffect(() => {
+    if (membro.verificado_em && pin) {
+      setPin('')
+      toast.success('Número confirmado pelo WhatsApp.')
+    }
+  }, [membro.verificado_em, pin])
+
+  async function desvincular() {
+    setSalvando(true)
+    try {
+      if (ehMinhaLinha) await store.salvarTelefone(null)
+      else await store.definirTelefoneMembro(membro.user_id, null)
+      setTelefone('')
+      setPin('')
+      toast.success('Número desvinculado.')
+      aoMudar()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível desvincular.')
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   async function salvar() {
     setSalvando(true)
@@ -117,6 +175,13 @@ function PainelWhatsApp({
             {gerando ? 'Gerando...' : membro.tem_pin ? 'Gerar novo PIN' : 'Gerar PIN'}
           </Button>
         )}
+
+        {membro.telefone && (
+          <Button variant="ghost" size="sm" disabled={salvando} onClick={desvincular}>
+            <Unlink className="size-4" />
+            Desvincular
+          </Button>
+        )}
       </div>
 
       {pin && (
@@ -130,12 +195,17 @@ function PainelWhatsApp({
             {formatarTelefone(membro.telefone)}. O código vale por 24 horas e só funciona vindo
             desse aparelho.
           </p>
+          <p className="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs">
+            <Loader2 className="size-3 animate-spin" />
+            Confirmo aqui assim que a mensagem chegar.
+          </p>
         </div>
       )}
 
       {membro.verificado_em && (
         <p className="text-muted-foreground mt-2 text-xs">
-          Número já verificado. Para trocar, salve outro — a verificação recomeça.
+          Confirmado em {formatDate(membro.verificado_em)}. Para trocar de aparelho, salve outro
+          número — a confirmação recomeça.
         </p>
       )}
     </div>

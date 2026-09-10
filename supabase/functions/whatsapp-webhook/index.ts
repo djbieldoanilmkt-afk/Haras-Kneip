@@ -42,6 +42,68 @@ function textoDaMensagem(m: Record<string, unknown> | undefined): string {
   return String(m.conversation ?? estendida?.text ?? imagem?.caption ?? '')
 }
 
+/*
+  As mensagens longas são montadas com array + join, e não com "\n" solto
+  dentro de string. O texto tem acento, asterisco e emoji, e passa por várias
+  camadas até chegar ao arquivo; escrever a quebra de linha como caractere
+  literal já quebrou o boot uma vez.
+*/
+const RECUSA = [
+  '❌ Esse código não confere ou já expirou.',
+  '',
+  'Peça um novo no sistema, em *Configurações → Equipe*, e me mande aqui deste mesmo celular.',
+].join('\n')
+
+/**
+ * Boas-vindas depois que o número é confirmado.
+ *
+ * Adaptada ao papel: oferecer lançamento de despesa a quem não tem acesso ao
+ * financeiro seria prometer o que a pessoa vai levar recusa ao tentar.
+ */
+async function boasVindas(userId: string, harasId: string): Promise<string> {
+  const [{ data: haras }, { data: membro }] = await Promise.all([
+    supabase.from('haras').select('nome').eq('id', harasId).maybeSingle(),
+    supabase.from('membros').select('papel').eq('user_id', userId).maybeSingle(),
+  ])
+
+  const nomeHaras = haras?.nome ?? 'seu haras'
+  const veFinanceiro = membro?.papel === 'dono' || membro?.papel === 'gerente'
+
+  const lancar = [
+    '• _"Vacinei a Estrela contra influenza hoje"_',
+    '• _"A Brisa pesou 420 quilos"_',
+    '• _"Cobri a Aurora com o Imperador ontem"_',
+  ]
+  if (veFinanceiro) {
+    lancar.unshift('• _"Gastei 1.200 de ração, divide entre os nove"_')
+  }
+
+  const perguntar = [
+    '• _"Quais éguas estão prenhas?"_',
+    '• _"Quando vence a vacina da Aurora?"_',
+    '• _"Quem está no piquete 2?"_',
+  ]
+  if (veFinanceiro) {
+    perguntar.push('• _"Quanto já gastei com vacina na Brilhante?"_')
+  }
+
+  return [
+    `✅ Número confirmado. Bem-vindo ao *HarasPro*, ${nomeHaras}!`,
+    '',
+    'Sou o assistente do haras. Pode falar comigo por *áudio ou texto*, do jeito que for mais fácil — inclusive com a mão suja, no meio do curral.',
+    '',
+    '*📝 Para eu registrar:*',
+    ...lancar,
+    '',
+    '*🔎 Para eu consultar:*',
+    ...perguntar,
+    '',
+    '⚠️ *Antes de gravar qualquer coisa eu confirmo com você.* Se faltar algum dado, eu pergunto — nunca invento.',
+    '',
+    '_Ainda estou sendo treinado para entender tudo isso. Por enquanto eu respondo, mas ainda não lanço. Aviso por aqui quando estiver pronto._',
+  ].join('\n')
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url)
   if (url.searchParams.get('s') !== WEBHOOK_SEGREDO) {
@@ -101,13 +163,7 @@ Deno.serve(async (req) => {
     })
     const ok = Array.isArray(verificado) ? verificado[0] : null
 
-    await enviar(
-      instancia,
-      numero,
-      ok
-        ? '✅ Número confirmado! A partir de agora eu registro no sistema o que você me mandar por aqui.'
-        : '❌ Código não confere ou já expirou. Peça um novo em Configurações → Equipe.',
-    )
+    await enviar(instancia, numero, ok ? await boasVindas(ok.user_id, ok.haras_id) : RECUSA)
     return new Response('ok')
   }
 

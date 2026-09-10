@@ -379,3 +379,56 @@ describe('Configuracoes — conexao do WhatsApp', () => {
     expect(img).toHaveAttribute('src', 'data:image/png;base64,AAAA')
   })
 })
+
+describe('Configuracoes — confirmacao e desvinculo', () => {
+  function render() {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, papel: 'dono', recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+    )
+  }
+
+  it('mostra confirmado, sem PIN, quando o numero ja foi verificado', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+
+    /*
+      Estado final, e nao o instante da troca.
+
+      A versao anterior deste teste tentava flagrar o PIN na tela entre gerar
+      e a recarga confirmar — uma janela de milissegundos que passava ou
+      falhava conforme a maquina. Ja tive um teste passando por sorte assim.
+    */
+    vi.mocked(store.getMinhaEquipe).mockResolvedValue([
+      {
+        user_id: 'u1',
+        email: 'dono@exemplo.com',
+        papel: 'dono' as const,
+        telefone: '+5531999998888',
+        verificado_em: '2026-09-10T13:18:58Z',
+        tem_pin: false,
+        desde: '2026-01-01',
+      },
+    ])
+
+    render()
+    await usuario.click(await screen.findByLabelText('WhatsApp de dono@exemplo.com'))
+
+    expect(await screen.findByText(/Confirmado em/)).toBeInTheDocument()
+    // Numero ja provado nao precisa de codigo novo.
+    expect(screen.queryByRole('button', { name: /Gerar PIN/ })).not.toBeInTheDocument()
+  })
+
+  it('desvincula o numero', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+
+    render()
+    await usuario.click(await screen.findByLabelText('WhatsApp de dono@exemplo.com'))
+    await usuario.click(await screen.findByRole('button', { name: /Desvincular/ }))
+
+    // A propria linha usa o caminho de menor privilegio.
+    await waitFor(() => expect(store.salvarTelefone).toHaveBeenCalledWith(null))
+  })
+})
