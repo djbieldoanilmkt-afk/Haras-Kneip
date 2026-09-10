@@ -289,12 +289,58 @@ async function transcrever(base64: string, mime: string): Promise<string> {
 /** Acima disto a fala vira monólogo; a pessoa desiste no meio. */
 const LIMITE_FALA = 600
 
-function paraFala(t: string): string {
+const MESES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+/**
+ * Escreve por extenso o que a tela abrevia.
+ *
+ * A tela e a boca querem coisas diferentes. "10/09/2026" se lê num relance,
+ * mas dito em voz alta saiu como "10 of nove": o locutor tratou a barra como
+ * palavra, e em inglês. "R$ 195,00" e "428 kg" têm o mesmo problema.
+ *
+ * Resolver isso pedindo ao modelo para falar português seria apostar que ele
+ * nunca escorrega. Trocar o texto antes de mandar é determinístico: o que ele
+ * recebe já não tem barra, cifrão nem sigla para interpretar.
+ */
+function porExtenso(t: string): string {
   return t
+    // 10/09/2026 -> 10 de setembro de 2026 (e 10/09 -> 10 de setembro)
+    .replace(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g, (todo, d, m, a) => {
+      const mes = MESES[Number(m) - 1]
+      if (!mes) return todo
+      return a ? `${Number(d)} de ${mes} de ${a}` : `${Number(d)} de ${mes}`
+    })
+    // R$ 1.234,56 -> 1234 reais e 56 centavos
+    .replace(/R\$\s?([\d.]+),(\d{2})/g, (_t, inteiro: string, centavos: string) => {
+      const reais = inteiro.replace(/\./g, '')
+      const c = Number(centavos)
+      return c === 0 ? `${reais} reais` : `${reais} reais e ${c} centavos`
+    })
+    // R$ 1.200 (sem centavos)
+    .replace(/R\$\s?([\d.]+)/g, (_t, inteiro: string) => `${inteiro.replace(/\./g, '')} reais`)
+    .replace(/(\d)\s*kg\b/gi, '$1 quilos')
+    .replace(/(\d)\s*cm\b/gi, '$1 centímetros')
+}
+
+function paraFala(t: string): string {
+  return porExtenso(t)
     .replace(/[*_~`]/g, '')
     .replace(/^[•\-]\s*/gm, '')
-    .replace(/\p{Extended_Pictographic}/gu, '')
+    /*
+      Emoji é mais de um caractere.
+
+      "⚖️" é o símbolo MAIS um seletor de variação invisível, e
+      `Extended_Pictographic` só casa com o primeiro. Sem levar junto o
+      seletor, o ZWJ e o sinal de tecla, sobrava lixo invisível no começo da
+      linha — que não é espaço e passava pela limpeza seguinte.
+    */
+    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\u200D\uFE0E\uFE0F\u20E3]/gu, '')
+    // O emoji sai e deixa o espaço dele para trás.
     .replace(/[ \t]+/g, ' ')
+    .replace(/^ +/gm, '')
     .trim()
 }
 
@@ -364,8 +410,12 @@ async function falar(texto: string): Promise<string | null> {
         messages: [
           {
             role: 'system',
-            content:
-              'Leia em voz alta, em português do Brasil, exatamente o texto do usuário. Não comente, não resuma, não acrescente nada.',
+            content: [
+              'Leia em voz alta, exatamente o texto do usuário.',
+              'Fale SEMPRE em português do Brasil, com sotaque brasileiro.',
+              'NUNCA pronuncie palavra em inglês, nem para ler número, data ou símbolo.',
+              'Não comente, não resuma, não acrescente nada.',
+            ].join(' '),
           },
           { role: 'user', content: limpo },
         ],
