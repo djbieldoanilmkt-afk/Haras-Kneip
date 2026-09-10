@@ -69,6 +69,7 @@ const OBRIGATORIOS: Record<string, string[]> = {
   lancar_anotacao: ['animal_id', 'conteudo'],
   lancar_evento: ['titulo', 'data'],
   lancar_sanidade_lote: ['animais', 'tipo'],
+  lancar_receita: ['categoria', 'descricao', 'valor'],
   // Aqui basta UM dos dois; a regra "pelo menos um" é conferida no fluxo.
   definir_pais: ['animal_id'],
 }
@@ -162,6 +163,7 @@ const AJUDA = [
   '🐴 *Assistente do haras*',
   '',
   '*Para registrar*, é só falar:',
+  '• _"Vendi a potra Fumaça por 15 mil para o Haras Vale Verde"_',
   '• _"Vacinei a Estrela contra influenza hoje"_',
   '• _"Vermifuguei o lote todo, 40 reais cada"_',
   '• _"A Brisa pesou 420 quilos"_',
@@ -175,6 +177,7 @@ const AJUDA = [
   '• _"Quais éguas estão prenhas?"_',
   '• _"O que vence nos próximos 30 dias?"_',
   '• _"Quanto gastei com vacina na Aurora?"_',
+  '• _"Quanto entrou esse mês?"_',
   '• _"Manda o link da vitrine"_',
   '',
   '📸 Mande a *foto* de um animal que eu anexo à ficha — ou peça _"mostra a foto da Aurora"_.',
@@ -484,8 +487,21 @@ function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
     '- lancar_evento: titulo, tipo, data, animal_id, descricao — compromisso do calendário',
     '- lancar_sanidade_lote: animais (LISTA de ids), tipo, descricao, data, proxima_data, custo',
     veFinanceiro
-      ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids)'
+      ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids).\n' +
+        '    A categoria é UM destes rótulos, escrito assim:\n' +
+        '    Ração e suplemento | Ferrageamento | Veterinário | Medicamento |\n' +
+        '    Mão de obra | Transporte | Manutenção | Taxas e registro | Outros.\n' +
+        '    NUNCA invente outro rótulo, e nunca sugira rótulo fora desta lista.'
       : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_despesa)',
+    veFinanceiro
+      ? '- lancar_receita: categoria, descricao, valor, data, cliente, animal_id, forma_pagamento.\n' +
+        '    DINHEIRO QUE ENTROU. A categoria é UM destes rótulos, escrito assim:\n' +
+        '    Venda de animal | Cobertura | Hospedagem | Prestação de serviço |\n' +
+        '    Premiação | Aluguel | Outros.\n' +
+        '    "Vendi", "recebi", "me pagaram" é receita;\n' +
+        '    "comprei", "paguei", "gastei" é despesa.'
+      : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_receita)',
+    veFinanceiro ? '- consultar_receitas: animal_id, desde, ate, termo' : '',
     '- consultar_custos: animal_id, desde, ate, termo',
     '- consultar_animais: status, sexo, local, termo (sexo para "éguas"/"garanhões";',
     '    termo SÓ para pedaço de NOME de animal, nunca para "égua" ou "potro")',
@@ -601,6 +617,29 @@ function faltando(acao: string, dados: Dados): string[] {
   return (OBRIGATORIOS[acao] ?? []).filter((c) => vazioMesmo(dados[c]))
 }
 
+/**
+ * Categoria de receita como ela vai ficar gravada.
+ *
+ * O modelo devolve o rótulo do jeito dele — "venda_animal", "venda", "VENDA
+ * DE ANIMAL". O banco normaliza na hora de gravar, mas a mensagem de
+ * confirmação mostrava o rótulo cru: a pessoa confirmava "venda_animal" e o
+ * sistema gravava "Venda de animal". Confirmar uma coisa e gravar outra
+ * esvazia o sentido de confirmar.
+ *
+ * Normalizamos aqui e mandamos já normalizado; a regra do banco continua como
+ * rede de segurança, e é idempotente ("Venda de animal" volta nela mesma).
+ */
+function categoriaReceita(bruta: unknown): string {
+  const t = String(bruta ?? '').toLowerCase()
+  if (t.includes('vend')) return 'Venda de animal'
+  if (t.includes('cobert') || t.includes('cobr')) return 'Cobertura'
+  if (t.includes('hosped') || t.includes('pens')) return 'Hospedagem'
+  if (t.includes('servi') || t.includes('doma') || t.includes('trein')) return 'Prestação de serviço'
+  if (t.includes('prem') || t.includes('prêm')) return 'Premiação'
+  if (t.includes('alug')) return 'Aluguel'
+  return 'Outros'
+}
+
 function nomeDoAnimal(plantel: Cavalo[], id: unknown): string {
   return plantel.find((a) => a.id === id)?.nome ?? 'animal'
 }
@@ -629,6 +668,13 @@ function resumo(acao: string, d: Dados, plantel: Cavalo[]): string {
     if (d.garanhao) linhas.push(`🐎 Garanhão: ${d.garanhao}`)
     if (d.metodo) linhas.push(`🔬 ${d.metodo}`)
     linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
+  } else if (acao === 'lancar_receita') {
+    linhas.push('🟢 *Receita*', '', `${categoriaReceita(d.categoria)} — *${dinheiro(d.valor)}*`)
+    linhas.push(`📝 ${d.descricao}`)
+    linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
+    if (d.cliente) linhas.push(`👤 ${d.cliente}`)
+    if (d.animal_id) linhas.push(`🐴 ${nomeDoAnimal(plantel, d.animal_id)}`)
+    if (d.forma_pagamento) linhas.push(`💳 ${d.forma_pagamento}`)
   } else if (acao === 'lancar_despesa') {
     linhas.push('💰 *Despesa*', '', `${d.categoria} — *${dinheiro(d.valor)}*`)
     linhas.push(`📝 ${d.descricao}`)
@@ -841,6 +887,21 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
     }
   }
 
+  if (acao === 'lancar_receita') {
+    const { error } = await supabase.rpc('agente_lancar_receita', {
+      p_user: user,
+      p_data: d.data ?? hoje,
+      p_categoria: categoriaReceita(d.categoria),
+      p_descricao: d.descricao,
+      p_valor: d.valor,
+      p_cliente: d.cliente ?? null,
+      p_animal: d.animal_id ?? null,
+      p_forma_pagamento: d.forma_pagamento ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return { mensagem: '✅ Receita lançada. Já entra no saldo do mês.' }
+  }
+
   if (acao === 'lancar_despesa') {
     const { error } = await supabase.rpc('agente_lancar_despesa', {
       p_user: user,
@@ -912,6 +973,27 @@ async function consultar(acao: string, user: string, d: Dados, harasId: string):
       '',
       '_Pode mandar esse link para comprador. Aparecem só os animais marcados como destaque._',
     ].join('\n')
+  }
+
+  if (acao === 'consultar_receitas') {
+    const { data, error } = await supabase.rpc('agente_consulta_receitas', {
+      p_user: user,
+      p_animal: d.animal_id ?? null,
+      p_desde: d.desde ?? null,
+      p_ate: d.ate ?? null,
+      p_termo: d.termo ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const linhas = (data ?? []) as Dados[]
+    if (linhas.length === 0) return 'Não encontrei nenhuma entrada com esse filtro.'
+
+    const total = linhas.reduce((s, l) => s + Number(l.valor ?? 0), 0)
+    const corpo = linhas
+      .slice(0, 15)
+      .map((l) => `• ${dia(l.data)} — ${l.descricao} — *${dinheiro(l.valor)}*`)
+    if (linhas.length > 15) corpo.push(`_...e mais ${linhas.length - 15} entradas._`)
+
+    return [`🟢 *Entrou: ${dinheiro(total)}* em ${linhas.length} lançamentos`, '', ...corpo].join('\n')
   }
 
   if (acao === 'consultar_custos') {

@@ -115,6 +115,34 @@ export type ResumoCustos = {
   porCategoria: CustoPorCategoria[]
 }
 
+/** Uma receita com o nome do animal que a gerou, quando há um. */
+export type ReceitaComAnimal = {
+  id: string
+  data: string
+  categoria: string
+  descricao: string
+  valor: number
+  cliente: string | null
+  animal_id: string | null
+  animal: string | null
+  forma_pagamento: string | null
+  observacoes: string | null
+}
+
+export type NovaReceita = {
+  data: string
+  categoria: string
+  descricao: string
+  valor: number
+  cliente?: string | null
+  animal_id?: string | null
+  forma_pagamento?: string | null
+  observacoes?: string | null
+}
+
+/** Entrou, saiu, sobrou — no mesmo período. */
+export type ResumoFinanceiro = { receitas: number; despesas: number; saldo: number }
+
 /**
  * O PostgREST devolve o vínculo "muitos para um" como objeto, mas o cliente
  * tipa a coluna embutida de forma ampla porque este projeto não usa tipos
@@ -760,6 +788,66 @@ export const store = {
     })
     if (error) throw new Error(error.message)
     return String(data)
+  },
+
+  // ------------------------------------------------------------- receitas
+
+  async getReceitas(meses = 6): Promise<ReceitaComAnimal[]> {
+    const { data, error } = await supabase
+      .from('receitas')
+      .select('*, animais(nome)')
+      .gte('data', inicioDoMes(-(meses - 1)))
+      .order('data', { ascending: false })
+
+    if (error) throw error
+
+    return (data ?? []).map((linha) => {
+      const r = linha as unknown as ReceitaComAnimal & ComAnimal
+      return {
+        id: r.id,
+        data: r.data,
+        categoria: r.categoria,
+        descricao: r.descricao,
+        valor: Number(r.valor ?? 0),
+        cliente: r.cliente ?? null,
+        animal_id: r.animal_id ?? null,
+        // O vínculo é `on delete set null`: a venda continua no caixa depois
+        // que o animal sai do plantel, e aí não há nome para mostrar.
+        animal: r.animais?.nome ?? null,
+        forma_pagamento: r.forma_pagamento ?? null,
+        observacoes: r.observacoes ?? null,
+      }
+    })
+  },
+
+  async createReceita(dados: NovaReceita): Promise<string> {
+    const { data, error } = await supabase.rpc('criar_receita', {
+      p_data: dados.data,
+      p_categoria: dados.categoria,
+      p_descricao: dados.descricao,
+      p_valor: dados.valor,
+      p_cliente: dados.cliente ?? null,
+      p_animal: dados.animal_id ?? null,
+      p_forma_pagamento: dados.forma_pagamento ?? null,
+      p_observacoes: dados.observacoes ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return String(data)
+  },
+
+  /** Entrou, saiu e sobrou no mês corrente. */
+  async getResumoFinanceiro(): Promise<ResumoFinanceiro> {
+    const { data, error } = await supabase.rpc('resumo_financeiro', {
+      p_desde: inicioDoMes(0),
+      p_ate: null,
+    })
+    if (error) throw error
+    const linha = (Array.isArray(data) ? data[0] : data) as ResumoFinanceiro | null
+    return {
+      receitas: Number(linha?.receitas ?? 0),
+      despesas: Number(linha?.despesas ?? 0),
+      saldo: Number(linha?.saldo ?? 0),
+    }
   },
 
   // -------------------------------------------------- exclusão reversível

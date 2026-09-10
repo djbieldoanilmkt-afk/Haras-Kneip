@@ -30,6 +30,10 @@ const animal = vi.hoisted(() => (id: string, nome: string) => ({
 }))
 
 const criarDespesa = vi.hoisted(() => vi.fn().mockResolvedValue({ id: 'd1' }))
+const criarReceita = vi.hoisted(() => vi.fn().mockResolvedValue('r2'))
+const resumoFinanceiro = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ receitas: 15000, despesas: 1200, saldo: 13800 }),
+)
 
 vi.mock('@/lib/store', () => ({
   store: {
@@ -67,6 +71,24 @@ vi.mock('@/lib/store', () => ({
     }),
     createDespesa: criarDespesa,
     deleteDespesa: vi.fn().mockResolvedValue(undefined),
+    getReceitas: vi.fn().mockResolvedValue([
+      {
+        id: 'r1',
+        data: '2026-09-05',
+        categoria: 'Venda de animal',
+        descricao: 'Venda da potra Fumaca',
+        valor: 15000,
+        cliente: 'Haras Vale Verde',
+        animal_id: 'a1',
+        animal: 'Aurora',
+        forma_pagamento: 'Pix',
+        observacoes: null,
+      },
+    ]),
+    createReceita: criarReceita,
+    getResumoFinanceiro: resumoFinanceiro,
+    excluirRegistro: vi.fn().mockResolvedValue(undefined),
+    restaurarRegistro: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -78,7 +100,7 @@ describe('Financeiro', () => {
   it('mostra o gasto do mes e o custo medio por animal', async () => {
     renderPage(<Financeiro />)
 
-    await waitFor(() => expect(screen.getByText('Gasto no mês')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
     // 1200 dividido por 3 animais no plantel.
     expect(screen.getByText('Custo médio por animal')).toBeInTheDocument()
     expect(screen.getByText('3 no plantel')).toBeInTheDocument()
@@ -95,7 +117,7 @@ describe('Financeiro', () => {
     const usuario = userEvent.setup()
     renderPage(<Financeiro />)
 
-    await waitFor(() => expect(screen.getByText('Gasto no mês')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
     await usuario.click(screen.getByRole('button', { name: /Nova despesa/ }))
 
     await usuario.type(screen.getByLabelText('Valor (R$)'), '100')
@@ -109,7 +131,7 @@ describe('Financeiro', () => {
     const usuario = userEvent.setup()
     renderPage(<Financeiro />)
 
-    await waitFor(() => expect(screen.getByText('Gasto no mês')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
     await usuario.click(screen.getByRole('button', { name: /Nova despesa/ }))
 
     await usuario.type(screen.getByLabelText('Descrição'), 'Conserto da cerca')
@@ -124,7 +146,7 @@ describe('Financeiro', () => {
     const usuario = userEvent.setup()
     renderPage(<Financeiro />)
 
-    await waitFor(() => expect(screen.getByText('Gasto no mês')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
     await usuario.click(screen.getByRole('button', { name: /Nova despesa/ }))
 
     await usuario.type(screen.getByLabelText('Descrição'), 'Teste')
@@ -133,5 +155,49 @@ describe('Financeiro', () => {
 
     expect(await screen.findByText('Valor precisa ser maior que zero')).toBeInTheDocument()
     expect(criarDespesa).not.toHaveBeenCalled()
+  })
+
+  it('mostra entrou, saiu e o saldo do mes', async () => {
+    renderPage(<Financeiro />)
+
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
+    expect(screen.getByText('Entrou no mês')).toBeInTheDocument()
+    // O saldo e a unica linha que responde "o haras deu lucro?".
+    expect(screen.getByText('Saldo do mês')).toBeInTheDocument()
+    expect(screen.getByText('entradas menos saídas')).toBeInTheDocument()
+  })
+
+  it('avisa quando o mes fecha no vermelho, em vez de so mostrar o numero', async () => {
+    resumoFinanceiro.mockResolvedValueOnce({ receitas: 300, despesas: 1200, saldo: -900 })
+    renderPage(<Financeiro />)
+
+    // Um saldo negativo em cinza passa despercebido justamente no mes em que
+    // importa; o cartao tem de dizer com todas as letras.
+    expect(await screen.findByText('fechando no vermelho')).toBeInTheDocument()
+  })
+
+  it('lista a receita com o animal e o cliente', async () => {
+    renderPage(<Financeiro />)
+
+    expect(await screen.findByText('Venda da potra Fumaca')).toBeInTheDocument()
+    const linha = screen.getByText('Venda da potra Fumaca').closest('li')
+    expect(linha?.textContent).toContain('Haras Vale Verde')
+    expect(linha?.textContent).toContain('Aurora')
+    // O sinal separa entrada de saida numa lista de numeros todos pretos.
+    expect(linha?.textContent).toContain('+')
+  })
+
+  it('recusa receita sem valor em vez de gravar entrada vazia', async () => {
+    const usuario = userEvent.setup()
+    renderPage(<Financeiro />)
+
+    await waitFor(() => expect(screen.getByText('Saiu no mês')).toBeInTheDocument())
+    await usuario.click(screen.getByRole('button', { name: /Nova receita/ }))
+
+    await usuario.type(await screen.findByLabelText('Descrição'), 'Venda sem valor')
+    await usuario.click(screen.getByRole('button', { name: /Lançar receita/ }))
+
+    expect(await screen.findByText('Informe um valor maior que zero.')).toBeInTheDocument()
+    expect(criarReceita).not.toHaveBeenCalled()
   })
 })

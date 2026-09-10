@@ -94,6 +94,7 @@ export const TABELAS_REVERSIVEIS = [
   'eventos',
   'pesagens',
   'despesas',
+  'receitas',
 ] as const
 
 export type TabelaReversivel = (typeof TABELAS_REVERSIVEIS)[number]

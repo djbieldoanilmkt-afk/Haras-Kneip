@@ -67,6 +67,11 @@ vi.mock('@/lib/store', () => ({
       eventosProximos: [],
     }),
     getPesagensResumo: vi.fn().mockResolvedValue([]),
+    getReceitas: vi.fn().mockResolvedValue([]),
+    createReceita: vi.fn().mockResolvedValue('r1'),
+    getResumoFinanceiro: vi
+      .fn()
+      .mockResolvedValue({ receitas: 0, despesas: 0, saldo: 0 }),
     getMeuMembro: vi.fn().mockResolvedValue({
       haras_id: 'h1',
       user_id: 'u1',
@@ -149,7 +154,7 @@ describe('smoke de renderizacao das paginas', () => {
   it('Financeiro', async () => {
     renderPage(<Financeiro />)
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Financeiro' })).toBeInTheDocument())
-    expect(screen.getByText('Gasto no mês')).toBeInTheDocument()
+    expect(screen.getByText('Saiu no mês')).toBeInTheDocument()
   })
 
   it('Sanidade', async () => {
