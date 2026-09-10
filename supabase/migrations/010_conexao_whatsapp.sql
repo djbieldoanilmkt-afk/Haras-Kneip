@@ -27,6 +27,24 @@ as $$
 $$;
 
 /*
+  Caminho de volta: da instancia para o haras.
+
+  O webhook recebe o nome da instancia e precisa saber de quem e. Desmontar o
+  nome com regex no TypeScript funcionaria hoje e quebraria no dia que o
+  formato mudasse — perguntar a quem monta mantem as duas pontas juntas.
+*/
+create or replace function public.haras_por_instancia(p_instancia text)
+returns uuid
+language sql stable security definer
+set search_path = public
+as $$
+  select id from public.haras where public.instancia_whatsapp(id) = p_instancia
+$$;
+
+revoke execute on function public.haras_por_instancia(text) from anon, authenticated, public;
+grant execute on function public.haras_por_instancia(text) to service_role;
+
+/*
   Registra a conexao. Chamada pela Edge Function com service_role depois que
   a Evolution confirma que a instancia abriu.
 
