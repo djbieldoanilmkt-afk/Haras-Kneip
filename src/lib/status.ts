@@ -40,22 +40,40 @@ export const TIPOS_EVENTO = [
   'Outro',
 ] as const
 
+/*
+  Estas listas espelham os check constraints do banco (012_vocabulario.sql).
+
+  Divergiam: a tela oferecia 'Vacina' e o banco exigia 'Vacinação', então
+  escolher a PRIMEIRA opção do formulário de sanidade estourava com violação
+  de constraint. O mesmo em cinco dos seis tipos de reprodução. Se mexer aqui,
+  mexa lá — ou o formulário volta a oferecer o que o banco recusa.
+*/
 export const TIPOS_SAUDE = [
-  'Vacina',
-  'Vermífugo',
+  'Vacinação',
+  'Vermifugação',
   'Exame',
+  'Ferração',
   'Odontologia',
+  'Veterinário',
   'Cirurgia/Tratamento',
   'Outro',
 ] as const
 
 export const TIPOS_REPRODUCAO = [
-  'Inseminação / Cobertura',
-  'Diagnóstico de Gestação (DG+)',
-  'Transferência de Embrião (TE)',
+  'Cobertura',
+  'Diagnóstico de Gestação',
+  'Gestação',
   'Parto',
+  'Desmame',
   'Cio',
-  'Absorção / Aborto',
+  'Aborto',
+] as const
+
+/** O banco também restringe o método; era campo livre na tela. */
+export const METODOS_REPRODUCAO = [
+  'Monta Natural',
+  'Inseminação Artificial',
+  'Transferência de Embrião',
 ] as const
 
 const CLASSES: Record<string, string> = {

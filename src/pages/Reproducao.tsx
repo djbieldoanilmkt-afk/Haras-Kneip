@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAsync } from '@/hooks/useAsync'
 import { store } from '@/lib/store'
-import { TIPOS_REPRODUCAO } from '@/lib/status'
+import { METODOS_REPRODUCAO, TIPOS_REPRODUCAO } from '@/lib/status'
 import { coberturasPorGaranhao, taxaDeDiagnostico } from '@/lib/reproducao'
 import { diasAte, formatDate } from '@/lib/format'
 import { validateReproducao } from '@/lib/validators'
@@ -335,11 +335,13 @@ export default function Reproducao() {
                 />
               </Campo>
 
-              <Campo label="Método" htmlFor="metodo" hint="Monta natural, IA, TE...">
-                <Input
-                  id="metodo"
+              {/* Select, e não texto livre: o banco só aceita estes três. */}
+              <Campo label="Método">
+                <SelectSimples
                   value={form.metodo}
-                  onChange={(e) => setForm((f) => ({ ...f, metodo: e.target.value }))}
+                  onValueChange={(v) => setForm((f) => ({ ...f, metodo: v }))}
+                  options={METODOS_REPRODUCAO}
+                  placeholder="Não informado"
                 />
               </Campo>
             </div>

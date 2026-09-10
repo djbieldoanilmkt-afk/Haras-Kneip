@@ -26,7 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAsync } from '@/hooks/useAsync'
 import { store } from '@/lib/store'
 import { calcularIdade, formatDate } from '@/lib/format'
-import { TIPOS_REPRODUCAO, TIPOS_SAUDE } from '@/lib/status'
+import { METODOS_REPRODUCAO, TIPOS_REPRODUCAO, TIPOS_SAUDE } from '@/lib/status'
 import { validateReproducao, validateSaude } from '@/lib/validators'
 import type { Animal } from '@/lib/database.types'
 
@@ -588,11 +588,13 @@ function AbaReproducao({ animal }: { animal: Animal }) {
                 onChange={(e) => setForm((f) => ({ ...f, garanhao: e.target.value }))}
               />
             </Campo>
-            <Campo label="Método" htmlFor="rep-metodo" hint="Ex: Monta natural, IA, TE">
-              <Input
-                id="rep-metodo"
+            {/* Select, e não texto livre: o banco só aceita estes três. */}
+            <Campo label="Método">
+              <SelectSimples
                 value={form.metodo}
-                onChange={(e) => setForm((f) => ({ ...f, metodo: e.target.value }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, metodo: v }))}
+                options={METODOS_REPRODUCAO}
+                placeholder="Não informado"
               />
             </Campo>
             <Campo label="Previsão de parto" htmlFor="rep-parto">

@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { statusClasses, STATUS_REPRODUTIVO, PELAGENS, TIPOS_MARCHA, TIPOS_EVENTO } from './status'
+import {
+  statusClasses,
+  STATUS_REPRODUTIVO,
+  PELAGENS,
+  TIPOS_MARCHA,
+  TIPOS_EVENTO,
+  TIPOS_SAUDE,
+  TIPOS_REPRODUCAO,
+  METODOS_REPRODUCAO,
+} from './status'
 
 describe('statusClasses', () => {
   it('mapeia status conhecidos sem diferenciar maiusculas', () => {
@@ -47,5 +56,53 @@ describe('listas do dominio', () => {
   it('TIPOS_EVENTO contem os sete tipos do calendario legado', () => {
     expect(TIPOS_EVENTO).toHaveLength(7)
     expect(TIPOS_EVENTO).toContain('Parto Previsto')
+  })
+})
+
+/*
+  Canário do vocabulário.
+
+  Estas listas precisam ser exatamente iguais aos check constraints do banco
+  (supabase/migrations/012_vocabulario.sql). Já divergiram uma vez: a tela
+  oferecia 'Vacina' e o banco exigia 'Vacinação', então escolher a PRIMEIRA
+  opção do formulário de sanidade estourava com violação de constraint — e
+  nenhum teste pegou, porque nenhum testava um insert de verdade.
+
+  Fixar os valores aqui não prova que o banco concorda; prova que ninguém os
+  mudou sem querer. Quem mexer nesta lista é obrigado a mexer na migração, e
+  vice-versa.
+*/
+describe('vocabulario alinhado com o banco', () => {
+  it('tipos de sanidade sao exatamente os aceitos pelo check constraint', () => {
+    expect([...TIPOS_SAUDE]).toEqual([
+      'Vacinação',
+      'Vermifugação',
+      'Exame',
+      'Ferração',
+      'Odontologia',
+      'Veterinário',
+      'Cirurgia/Tratamento',
+      'Outro',
+    ])
+  })
+
+  it('tipos de reproducao sao exatamente os aceitos pelo check constraint', () => {
+    expect([...TIPOS_REPRODUCAO]).toEqual([
+      'Cobertura',
+      'Diagnóstico de Gestação',
+      'Gestação',
+      'Parto',
+      'Desmame',
+      'Cio',
+      'Aborto',
+    ])
+  })
+
+  it('metodos de reproducao sao exatamente os tres aceitos', () => {
+    expect([...METODOS_REPRODUCAO]).toEqual([
+      'Monta Natural',
+      'Inseminação Artificial',
+      'Transferência de Embrião',
+    ])
   })
 })
