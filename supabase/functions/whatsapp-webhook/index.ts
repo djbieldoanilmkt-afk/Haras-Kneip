@@ -37,6 +37,16 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const PIN = /\b(\d{6})\b/
 
+/**
+ * Quebra de linha como constante.
+ *
+ * As mensagens são montadas com array + join. O separador vive aqui porque
+ * editar este arquivo por script já transformou o "\n" de dentro de uma string
+ * em quebra de linha DE VERDADE duas vezes, e as duas derrubaram o boot com
+ * erro de sintaxe. Referenciar uma constante não tem como quebrar assim.
+ */
+const NL = '\n'
+
 // ============================================================ vocabulário
 
 type Dados = Record<string, unknown>
@@ -48,6 +58,8 @@ const OBRIGATORIOS: Record<string, string[]> = {
   lancar_despesa: ['categoria', 'descricao', 'valor'],
   lancar_pesagem: ['animal_id', 'peso'],
   lancar_reproducao: ['animal_id', 'tipo'],
+  // Aqui basta UM dos dois; a regra "pelo menos um" é conferida no fluxo.
+  definir_pais: ['animal_id'],
 }
 
 const PERGUNTA: Record<string, string> = {
@@ -217,6 +229,7 @@ function instrucoes(plantel: { id: string; nome: string }[], veFinanceiro: boole
     '- lancar_sanidade: animal_id, tipo, descricao, data, proxima_data, custo, veterinario',
     '- lancar_pesagem: animal_id, peso, data, observacoes',
     '- lancar_reproducao: animal_id, tipo, data, garanhao, metodo, data_prevista_parto',
+    '- definir_pais: animal_id, pai (NOME do pai), mae (NOME da mãe)',
     veFinanceiro
       ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids)'
       : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_despesa)',
@@ -235,6 +248,8 @@ function instrucoes(plantel: { id: string; nome: string }[], veFinanceiro: boole
     '4. animal_id tem de ser um id EXATO da lista. Se o que ela falou não bater',
     '   com nenhum, deixe vazio e diga isso em observacao.',
     '5. Se ela pedir uma ação sem dar dado nenhum, devolva a ação com dados vazios.',
+    '6. Em definir_pais, `pai` e `mae` são NOMES em texto, não ids: o ancestral',
+    '   pode ser de outro haras e não estar na lista.',
     '',
     'Animais deste haras:',
     plantel.map((a) => `${a.id} = ${a.nome}`).join('\n') || '(nenhum ainda)',
@@ -345,17 +360,48 @@ function resumo(acao: string, d: Dados, plantel: { id: string; nome: string }[])
     }
   }
 
+  if (acao === 'definir_pais') {
+    linhas.push('🌳 *Genealogia* — ' + `*${nomeDoAnimal(plantel, d.animal_id)}*`, '')
+
+    /*
+      Dizer quem é de fora ANTES de gravar.
+
+      Ancestral que não está no plantel vira um registro externo, criado na
+      hora. Quem confirma precisa saber disso — senão descobre depois que o
+      sistema "criou um animal" que ele não cadastrou.
+    */
+    for (const [rotulo, valor] of [['🐎 Pai', d.pai], ['🐴 Mãe', d.mae]] as [string, unknown][]) {
+      if (!valor) continue
+      const dentro = plantel.some((a) => a.nome.toLowerCase() === String(valor).toLowerCase())
+      linhas.push(`${rotulo}: ${valor}${dentro ? '' : ' _(de fora — guardo só para a árvore)_'}`)
+    }
+  }
+
   linhas.push('', 'Confirma? Responda *sim* ou *não*.')
   return linhas.join('\n')
 }
 
 // ============================================================ execução
 
-async function gravar(acao: string, user: string, d: Dados): Promise<string> {
+/** `seguimento` emenda a próxima pergunta sem a pessoa precisar pedir. */
+type Gravacao = { mensagem: string; seguimento?: { acao: string; dados: Dados } }
+
+async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
   const hoje = new Date().toISOString().slice(0, 10)
 
+  if (acao === 'definir_pais') {
+    const { error } = await supabase.rpc('agente_definir_pais', {
+      p_user: user,
+      p_animal: d.animal_id,
+      p_pai: d.pai ?? null,
+      p_mae: d.mae ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return { mensagem: '🌳 Genealogia registrada.' }
+  }
+
   if (acao === 'cadastrar_animal') {
-    const { error } = await supabase.rpc('agente_cadastrar_animal', {
+    const { data: novoId, error } = await supabase.rpc('agente_cadastrar_animal', {
       p_user: user,
       p_nome: d.nome,
       p_sexo: d.sexo,
@@ -366,7 +412,25 @@ async function gravar(acao: string, user: string, d: Dados): Promise<string> {
       p_baia_piquete: d.baia_piquete ?? null,
     })
     if (error) throw new Error(error.message)
-    return `✅ *${d.nome}* cadastrado. Pode mandar a foto que eu anexo.`
+
+    /*
+      Emenda a genealogia em vez de esperar a pessoa lembrar.
+
+      É o único momento em que ela tem os pais na cabeça. Perguntar depois, numa
+      tela, é o que fez nove animais terminarem com dois registros de árvore.
+    */
+    return {
+      mensagem: [
+        `✅ *${d.nome}* cadastrado.`,
+        '',
+        'Quem são os pais? Pode dizer os dois, só um, ou responder *pular*.',
+        '',
+        '_Se o garanhão for de outro haras, tudo bem — eu guardo só para a árvore._',
+        '',
+        '📸 E pode mandar a foto que eu anexo à ficha.',
+      ].join(NL),
+      seguimento: { acao: 'definir_pais', dados: { animal_id: novoId } },
+    }
   }
 
   if (acao === 'lancar_sanidade') {
@@ -381,7 +445,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<string> {
       p_veterinario: d.veterinario ?? null,
     })
     if (error) throw new Error(error.message)
-    return '✅ Registro de sanidade lançado.'
+    return { mensagem: '✅ Registro de sanidade lançado.' }
   }
 
   if (acao === 'lancar_pesagem') {
@@ -393,7 +457,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<string> {
       p_observacoes: d.observacoes ?? null,
     })
     if (error) throw new Error(error.message)
-    return '✅ Pesagem registrada.'
+    return { mensagem: '✅ Pesagem registrada.' }
   }
 
   if (acao === 'lancar_reproducao') {
@@ -408,7 +472,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<string> {
       p_resultado: d.resultado ?? null,
     })
     if (error) throw new Error(error.message)
-    return '✅ Evento reprodutivo lançado.'
+    return { mensagem: '✅ Evento reprodutivo lançado.' }
   }
 
   if (acao === 'lancar_despesa') {
@@ -422,7 +486,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<string> {
       p_animais: (d.animais as string[]) ?? null,
     })
     if (error) throw new Error(error.message)
-    return '✅ Despesa lançada. Já aparece no Financeiro.'
+    return { mensagem: '✅ Despesa lançada. Já aparece no Financeiro.' }
   }
 
   throw new Error('Ação desconhecida.')
@@ -732,9 +796,25 @@ Deno.serve(async (req) => {
       return new Response('ok')
     }
     try {
-      const aviso = await gravar(String(pendente.acao), user, pendente.dados as Dados)
+      const feito = await gravar(String(pendente.acao), user, pendente.dados as Dados)
       await limpar()
-      await enviar(instancia, numero, aviso)
+
+      // Emenda a próxima pergunta já com o contexto pronto, para a resposta
+      // curta ("pai Imperador, mãe Estrela") saber a que animal se refere.
+      if (feito.seguimento) {
+        await supabase.from('intencoes').insert({
+          haras_id: harasId,
+          user_id: user,
+          telefone: numero,
+          acao: feito.seguimento.acao,
+          dados: feito.seguimento.dados,
+          faltando: [],
+          estado: 'coletando',
+          expira_em: new Date(Date.now() + 30 * 60_000).toISOString(),
+        })
+      }
+
+      await enviar(instancia, numero, feito.mensagem)
     } catch (e) {
       await limpar()
       await enviar(instancia, numero, `❌ Não consegui gravar: ${e instanceof Error ? e.message : 'erro'}`)
@@ -783,6 +863,32 @@ Deno.serve(async (req) => {
       { onConflict: 'telefone' },
     )
     await enviar(instancia, numero, ROTEIRO[leitura.acao])
+    return new Response('ok')
+  }
+
+  /*
+    Genealogia é o único caso em que nenhum campo é obrigatório sozinho, mas
+    algum precisa vir: confirmar sem pai nem mãe gravaria uma linha vazia.
+  */
+  if (leitura.acao === 'definir_pais' && !dadosAtuais.pai && !dadosAtuais.mae) {
+    await supabase.from('intencoes').upsert(
+      {
+        haras_id: harasId,
+        user_id: user,
+        telefone: numero,
+        acao: 'definir_pais',
+        dados: dadosAtuais,
+        faltando: ['pai'],
+        estado: 'coletando',
+        expira_em: new Date(Date.now() + 30 * 60_000).toISOString(),
+      },
+      { onConflict: 'telefone' },
+    )
+    await enviar(
+      instancia,
+      numero,
+      'Me diga o *nome do pai*, o *da mãe*, ou os dois. Se não souber agora, responda *pular*.',
+    )
     return new Response('ok')
   }
 
