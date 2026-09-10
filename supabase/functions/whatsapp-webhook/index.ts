@@ -32,6 +32,9 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const OPENROUTER_KEY = Deno.env.get('OPENROUTER_KEY')!
 const MODELO = Deno.env.get('OPENROUTER_MODELO') ?? 'google/gemini-2.5-flash'
 const MODELO_AUDIO = Deno.env.get('OPENROUTER_MODELO_AUDIO') ?? 'openai/whisper-large-v3-turbo'
+const MODELO_VOZ = Deno.env.get('OPENROUTER_MODELO_VOZ') ?? 'openai/gpt-audio-mini'
+// Em variável para trocar a voz sem publicar o código de novo.
+const VOZ = Deno.env.get('VOZ_AGENTE') ?? 'alloy'
 const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://haras-kneip.vercel.app').replace(/\/+$/, '')
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -196,6 +199,17 @@ async function enviar(instancia: string, numero: string, texto: string) {
   })
 }
 
+/** Manda um WAV em base64 como áudio de WhatsApp; a Evolution converte. */
+async function enviarAudio(instancia: string, numero: string, base64: string) {
+  await fetch(`${EVOLUTION_URL}/message/sendWhatsAppAudio/${instancia}`, {
+    method: 'POST',
+    headers: { apikey: EVOLUTION_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ number: numero, audio: base64 }),
+  }).catch(() => {
+    // O texto já foi. Falhar a voz não pode derrubar o webhook.
+  })
+}
+
 /** Manda a foto do animal de volta, com legenda. */
 async function enviarImagem(instancia: string, numero: string, url: string, legenda: string) {
   const r = await fetch(`${EVOLUTION_URL}/message/sendMedia/${instancia}`, {
@@ -252,6 +266,148 @@ async function transcrever(base64: string, mime: string): Promise<string> {
   })
   const d = (await r.json()) as { text?: string }
   return (d.text ?? '').trim()
+}
+
+/*
+  Resposta falada.
+
+  Quem manda áudio está com as mãos ocupadas — muitas vezes literalmente dentro
+  do curral. Devolver só texto obriga a pessoa a limpar a mão e olhar a tela,
+  que é justamente o que o áudio existia para evitar. Então: falou, é respondido
+  falando. Quem digitou continua recebendo só texto.
+
+  O texto vai SEMPRE, e primeiro. A voz é um extra por cima — áudio não se lê
+  por cima nem se procura depois.
+*/
+
+/** Acima disto a fala vira monólogo; a pessoa desiste no meio. */
+const LIMITE_FALA = 600
+
+function paraFala(t: string): string {
+  return t
+    .replace(/[*_~`]/g, '')
+    .replace(/^[•\-]\s*/gm, '')
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
+
+function b64ParaBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const saida = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) saida[i] = bin.charCodeAt(i)
+  return saida
+}
+
+function bytesParaB64(b: Uint8Array): string {
+  // Em pedaços: `String.fromCharCode(...b)` com 400 mil argumentos estoura a
+  // pilha.
+  let s = ''
+  const passo = 0x8000
+  for (let i = 0; i < b.length; i += passo) {
+    s += String.fromCharCode(...b.subarray(i, i + passo))
+  }
+  return btoa(s)
+}
+
+/**
+ * Embrulha PCM cru num WAV.
+ *
+ * O streaming da OpenRouter só entrega `pcm16` — mp3 é recusado com stream
+ * ligado. WhatsApp não toca PCM solto, e não há ffmpeg aqui dentro. Mas a
+ * Evolution converte o que recebe, e reconhece WAV: 44 bytes de cabeçalho
+ * resolvem o que exigiria um conversor.
+ */
+function envelopeWav(pcm: Uint8Array, taxa = 24000): Uint8Array {
+  const saida = new Uint8Array(44 + pcm.length)
+  const dv = new DataView(saida.buffer)
+  const marca = (p: number, s: string) => {
+    for (let i = 0; i < s.length; i++) saida[p + i] = s.charCodeAt(i)
+  }
+  marca(0, 'RIFF')
+  dv.setUint32(4, 36 + pcm.length, true)
+  marca(8, 'WAVE')
+  marca(12, 'fmt ')
+  dv.setUint32(16, 16, true) // tamanho do bloco fmt
+  dv.setUint16(20, 1, true) // PCM sem compressão
+  dv.setUint16(22, 1, true) // mono
+  dv.setUint32(24, taxa, true)
+  dv.setUint32(28, taxa * 2, true) // bytes por segundo
+  dv.setUint16(32, 2, true) // alinhamento do bloco
+  dv.setUint16(34, 16, true) // bits por amostra
+  marca(36, 'data')
+  dv.setUint32(40, pcm.length, true)
+  saida.set(pcm, 44)
+  return saida
+}
+
+/** Texto virando voz. Devolve WAV em base64, ou nulo se não der. */
+async function falar(texto: string): Promise<string | null> {
+  const limpo = paraFala(texto)
+  if (!limpo || limpo.length > LIMITE_FALA) return null
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENROUTER_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODELO_VOZ,
+        modalities: ['text', 'audio'],
+        audio: { voice: VOZ, format: 'pcm16' },
+        stream: true,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Leia em voz alta, em português do Brasil, exatamente o texto do usuário. Não comente, não resuma, não acrescente nada.',
+          },
+          { role: 'user', content: limpo },
+        ],
+      }),
+    })
+    if (!r.ok || !r.body) return null
+
+    const partes: Uint8Array[] = []
+    const leitor = r.body.getReader()
+    const dec = new TextDecoder()
+    let sobra = ''
+
+    while (true) {
+      const { done, value } = await leitor.read()
+      if (done) break
+      sobra += dec.decode(value, { stream: true })
+      const linhas = sobra.split(NL)
+      // A última pode ter sido cortada no meio; volta para a próxima rodada.
+      sobra = linhas.pop() ?? ''
+      for (const linha of linhas) {
+        if (!linha.startsWith('data: ')) continue
+        const carga = linha.slice(6).trim()
+        if (!carga || carga === '[DONE]') continue
+        try {
+          const d = JSON.parse(carga) as Dados
+          const escolhas = (d.choices ?? []) as Dados[]
+          const dado = ((escolhas[0]?.delta as Dados)?.audio as Dados)?.data
+          // Cada pedaço é decodificado sozinho: emendar base64 solto depende
+          // de todo pedaço ser múltiplo de 3 bytes, o que ninguém promete.
+          if (dado) partes.push(b64ParaBytes(String(dado)))
+        } catch {
+          // Pedaço partido no meio do JSON: o resto chega na próxima leitura.
+        }
+      }
+    }
+
+    if (partes.length === 0) return null
+    const total = partes.reduce((s, p) => s + p.length, 0)
+    const pcm = new Uint8Array(total)
+    let pos = 0
+    for (const p of partes) {
+      pcm.set(p, pos)
+      pos += p.length
+    }
+    return bytesParaB64(envelopeWav(pcm))
+  } catch {
+    return null
+  }
 }
 
 function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
@@ -959,6 +1115,16 @@ Deno.serve(async (req) => {
   }
 
   // ------------------------------------------------------------------ áudio
+  const veioDeAudio = Boolean(audio)
+
+  /** Texto sempre; voz só para quem falou. */
+  const responder = async (resposta: string) => {
+    await enviar(instancia, numero, resposta)
+    if (!veioDeAudio) return
+    const voz = await falar(resposta)
+    if (voz) await enviarAudio(instancia, numero, voz)
+  }
+
   if (audio && !texto) {
     const midia = await baixarMidia(instancia, chave)
     if (!midia) {
@@ -983,19 +1149,19 @@ Deno.serve(async (req) => {
   )
 
   if (leitura.acao === 'ajuda') {
-    await enviar(instancia, numero, AJUDA)
+    await responder(AJUDA)
     return new Response('ok')
   }
 
   if (leitura.acao === 'cancelar') {
     await limpar()
-    await enviar(instancia, numero, 'Beleza, cancelei. Não gravei nada. 👍')
+    await responder('Beleza, cancelei. Não gravei nada. 👍')
     return new Response('ok')
   }
 
   if (leitura.acao === 'confirmar') {
     if (!pendente || pendente.estado !== 'aguardando_confirmacao') {
-      await enviar(instancia, numero, 'Não tenho nada esperando confirmação. Pode me dizer o que você quer registrar?')
+      await responder('Não tenho nada esperando confirmação. Pode me dizer o que você quer registrar?')
       return new Response('ok')
     }
     try {
@@ -1017,10 +1183,10 @@ Deno.serve(async (req) => {
         })
       }
 
-      await enviar(instancia, numero, feito.mensagem)
+      await responder(feito.mensagem)
     } catch (e) {
       await limpar()
-      await enviar(instancia, numero, `❌ Não consegui gravar: ${e instanceof Error ? e.message : 'erro'}`)
+      await responder(`❌ Não consegui gravar: ${e instanceof Error ? e.message : 'erro'}`)
     }
     return new Response('ok')
   }
@@ -1028,7 +1194,7 @@ Deno.serve(async (req) => {
   if (leitura.acao === 'mostrar_foto') {
     const alvo = plantel.find((a) => a.id === leitura.dados.animal_id)
     if (!alvo) {
-      await enviar(instancia, numero, 'De qual animal você quer ver a foto?')
+      await responder('De qual animal você quer ver a foto?')
       return new Response('ok')
     }
 
@@ -1039,7 +1205,7 @@ Deno.serve(async (req) => {
     // Sem isto, uma falha na consulta viraria "esse animal não tem foto" — uma
     // resposta tranquila para um erro, que ninguém iria investigar.
     if (erroFicha) {
-      await enviar(instancia, numero, `❌ Não consegui buscar a ficha: ${erroFicha.message}`)
+      await responder(`❌ Não consegui buscar a ficha: ${erroFicha.message}`)
       return new Response('ok')
     }
 
@@ -1048,9 +1214,7 @@ Deno.serve(async (req) => {
 
     if (foto) await enviarImagem(instancia, numero, String(foto), `🐴 *${alvo.nome}*`)
     else {
-      await enviar(
-        instancia,
-        numero,
+      await responder(
         `*${alvo.nome}* ainda não tem foto.${NL}${NL}📸 Manda uma aqui que eu anexo à ficha.`,
       )
     }
@@ -1067,7 +1231,7 @@ Deno.serve(async (req) => {
     const ultimo = (Array.isArray(ultimoBruto) ? ultimoBruto[0] : null) as Dados | null
 
     if (!ultimo) {
-      await enviar(instancia, numero, 'Não achei nenhum lançamento seu para apagar.')
+      await responder('Não achei nenhum lançamento seu para apagar.')
       return new Response('ok')
     }
 
@@ -1085,9 +1249,7 @@ Deno.serve(async (req) => {
       { onConflict: 'telefone' },
     )
 
-    await enviar(
-      instancia,
-      numero,
+    await responder(
       [
         '🗑️ *Apagar este lançamento?*',
         '',
@@ -1101,16 +1263,16 @@ Deno.serve(async (req) => {
 
   if (leitura.acao.startsWith('consultar_')) {
     try {
-      await enviar(instancia, numero, await consultar(leitura.acao, user, leitura.dados, harasId))
+      await responder(await consultar(leitura.acao, user, leitura.dados, harasId))
     } catch (e) {
-      await enviar(instancia, numero, `❌ Não consegui consultar: ${e instanceof Error ? e.message : 'erro'}`)
+      await responder(`❌ Não consegui consultar: ${e instanceof Error ? e.message : 'erro'}`)
     }
     return new Response('ok')
   }
 
   if (!OBRIGATORIOS[leitura.acao]) {
     const extra = leitura.observacao ? `\n\n_${leitura.observacao}_` : ''
-    await enviar(instancia, numero, `Não entendi o que você quer registrar.${extra}\n\nManda *ajuda* que eu explico.`)
+    await responder(`Não entendi o que você quer registrar.${extra}\n\nManda *ajuda* que eu explico.`)
     return new Response('ok')
   }
 
@@ -1139,7 +1301,7 @@ Deno.serve(async (req) => {
       },
       { onConflict: 'telefone' },
     )
-    await enviar(instancia, numero, ROTEIRO[leitura.acao])
+    await responder(ROTEIRO[leitura.acao])
     return new Response('ok')
   }
 
@@ -1161,9 +1323,7 @@ Deno.serve(async (req) => {
       },
       { onConflict: 'telefone' },
     )
-    await enviar(
-      instancia,
-      numero,
+    await responder(
       'Me diga o *nome do pai*, o *da mãe*, ou os dois. Se não souber agora, responda *pular*.',
     )
     return new Response('ok')
@@ -1190,10 +1350,10 @@ Deno.serve(async (req) => {
     const texto2 =
       lista.length === 1 ? lista[0] : lista.slice(0, -1).join(', ') + ' e ' + lista[lista.length - 1]
     const extra = leitura.observacao ? `\n\n_${leitura.observacao}_` : ''
-    await enviar(instancia, numero, `Quase lá! Só faltou me dizer ${texto2}.${extra}`)
+    await responder(`Quase lá! Só faltou me dizer ${texto2}.${extra}`)
     return new Response('ok')
   }
 
-  await enviar(instancia, numero, resumo(leitura.acao, dadosAtuais, plantel))
+  await responder(resumo(leitura.acao, dadosAtuais, plantel))
   return new Response('ok')
 })
