@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Copy, ListChecks, MessageCircle, Star, XCircle } from 'lucide-react'
+import { Copy, ListChecks, MessageCircle, Search, Star, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { AnimalCard } from '@/components/AnimalCard'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAsync } from '@/hooks/useAsync'
 import { store } from '@/lib/store'
@@ -21,6 +22,11 @@ const FILTROS: { key: Filtro; label: string }[] = [
   { key: 'destaque', label: 'No link' },
 ]
 
+/** Compara sem acento e sem caixa: "faisca" acha "Faísca". */
+function semAcento(t: string): string {
+  return t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
 /** Mesma montagem de js/pages/catalog.js:198. */
 const URL_PUBLICA = `${window.location.origin}${window.location.pathname}#/plantel`
 
@@ -30,6 +36,7 @@ export default function Catalogo() {
     [],
   )
 
+  const [busca, setBusca] = useState('')
   const [ativos, setAtivos] = useState<Set<Filtro>>(new Set())
   const [destaqueLocal, setDestaqueLocal] = useState<Record<string, boolean>>({})
 
@@ -50,17 +57,37 @@ export default function Catalogo() {
 
   const emDestaque = (a: Animal) => destaqueLocal[a.id] ?? a.em_destaque !== false
 
+  /*
+    Busca e filtro se somam, em vez de um anular o outro.
+
+    Procurar "estrela" dentro de "Éguas" tem de devolver as éguas chamadas
+    Estrela — nao todas as Estrelas nem todas as éguas. Sao perguntas
+    diferentes sobre o mesmo plantel.
+
+    Comparacao sem acento: quem digita no celular, no curral, escreve "faisca"
+    e precisa achar "Faísca". Exigir o acento certo e transformar a busca num
+    teste de digitacao.
+  */
   const visiveis = useMemo(() => {
-    if (ativos.size === 0) return animais
-    return animais.filter(
-      (a) =>
-        (ativos.has('Fêmea') && a.sexo === 'Fêmea') ||
-        (ativos.has('Macho') && a.sexo === 'Macho') ||
-        (ativos.has('Prenha') && a.status_reprodutivo === 'Prenha') ||
-        (ativos.has('destaque') && emDestaque(a)),
-    )
+    const termo = semAcento(busca.trim())
+
+    const passaNoFiltro = (a: Animal) =>
+      ativos.size === 0 ||
+      (ativos.has('Fêmea') && a.sexo === 'Fêmea') ||
+      (ativos.has('Macho') && a.sexo === 'Macho') ||
+      (ativos.has('Prenha') && a.status_reprodutivo === 'Prenha') ||
+      (ativos.has('destaque') && emDestaque(a))
+
+    const passaNaBusca = (a: Animal) =>
+      termo === '' ||
+      semAcento(a.nome).includes(termo) ||
+      semAcento(a.apelido ?? '').includes(termo) ||
+      semAcento(a.registro_abccmm ?? '').includes(termo) ||
+      semAcento(a.baia_piquete ?? '').includes(termo)
+
+    return animais.filter((a) => passaNoFiltro(a) && passaNaBusca(a))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animais, ativos, destaqueLocal])
+  }, [animais, ativos, destaqueLocal, busca])
 
   const totalNoLink = animais.filter(emDestaque).length
 
@@ -152,6 +179,18 @@ export default function Catalogo() {
       </Card>
 
       <div className="mb-4 flex flex-wrap gap-2">
+        <div className="relative w-full sm:w-64">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, registro ou baia"
+            aria-label="Buscar no plantel"
+            className="h-9 pl-8"
+          />
+        </div>
+
         <Button
           variant={ativos.size === 0 ? 'default' : 'outline'}
           size="sm"
@@ -188,9 +227,20 @@ export default function Catalogo() {
       ) : visiveis.length === 0 ? (
         <Card className="p-12 text-center">
           <h2 className="text-base font-semibold">Nenhum cavalo encontrado</h2>
+          {/*
+            Repetir o termo buscado evita o beco sem saída: quem digitou errado
+            vê o próprio erro, em vez de concluir que o animal não existe.
+          */}
           <p className="text-muted-foreground mt-1 text-sm">
-            Tente ajustar os filtros ou cadastrar um novo animal.
+            {busca.trim()
+              ? `Nada com "${busca.trim()}". Confira a grafia ou limpe a busca.`
+              : 'Tente ajustar os filtros ou cadastrar um novo animal.'}
           </p>
+          {busca.trim() && (
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => setBusca('')}>
+              Limpar busca
+            </Button>
+          )}
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
