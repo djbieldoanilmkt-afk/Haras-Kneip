@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 
 import './index.css'
 import { ConfiguracaoAusente } from './ConfiguracaoAusente'
+import { registrarOffline } from './lib/offline'
 
 const raiz = createRoot(document.getElementById('root')!)
 
@@ -31,4 +32,8 @@ if (faltando.length > 0) {
       </StrictMode>,
     )
   })
+
+  // Só depois de a configuração existir: sem Supabase o app não roda, e um
+  // worker guardando a tela de "configuração ausente" a serviria para sempre.
+  registrarOffline()
 }

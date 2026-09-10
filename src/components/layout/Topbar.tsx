@@ -3,6 +3,7 @@ import { LogOut, Menu, Plus, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
+import { limparDadosOffline } from '@/lib/offline'
 import { ThemeToggle } from './ThemeToggle'
 
 export function Topbar({
@@ -48,7 +49,12 @@ export function Topbar({
           variant="ghost"
           size="icon"
           aria-label="Sair da conta"
-          onClick={() => supabase.auth.signOut()}
+          onClick={async () => {
+            // Apaga o cache offline ANTES de encerrar a sessão: num celular de
+            // escritório, o próximo a entrar não pode ver o plantel do anterior.
+            await limparDadosOffline()
+            await supabase.auth.signOut()
+          }}
         >
           <LogOut className="size-4" />
         </Button>
