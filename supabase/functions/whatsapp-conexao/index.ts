@@ -29,16 +29,30 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 /** Sufixo secreto na URL do webhook: sem ele, qualquer um postaria mensagens. */
 const WEBHOOK_SEGREDO = Deno.env.get('WEBHOOK_SEGREDO') ?? ''
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+/*
+  Lista fixa NAO serve aqui.
+
+  O supabase-js manda `x-client-info` e `apikey` alem de authorization e
+  content-type. Permitindo so os dois primeiros, o navegador recusa o
+  preflight e o fetch estoura antes de sair da maquina — o erro que aparece na
+  tela e "Failed to send a request to the Edge Function", que nao diz nada
+  sobre CORS. Devolver de volta o que o navegador pediu resolve hoje e nao
+  quebra quando a biblioteca acrescentar outro cabecalho.
+*/
+function cors(req: Request) {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers':
+      req.headers.get('Access-Control-Request-Headers') ??
+      'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
-function json(corpo: unknown, status = 200) {
+function resposta(req: Request, corpo: unknown, status = 200) {
   return new Response(JSON.stringify(corpo), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+    headers: { ...cors(req), 'Content-Type': 'application/json' },
   })
 }
 
@@ -64,7 +78,9 @@ async function evolution(caminho: string, init: RequestInit = {}) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) })
+
+  const json = (corpo: unknown, status = 200) => resposta(req, corpo, status)
 
   if (!EVOLUTION_URL || !EVOLUTION_KEY) {
     // Mensagem explícita em vez de erro genérico: enquanto o servidor da
