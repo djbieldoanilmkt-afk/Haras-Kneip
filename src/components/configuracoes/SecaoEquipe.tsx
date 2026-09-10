@@ -235,7 +235,16 @@ export function SecaoEquipe() {
         chega uma mensagem daquele celular com o PIN.
       </p>
 
-      {carregandoEquipe || carregandoConvites ? (
+      {/*
+        Esqueleto SÓ na primeira carga.
+
+        `useAsync` volta a `loading` a cada recarga, mas mantém os dados
+        anteriores. Trocar a lista pelo esqueleto nessas recargas desmonta o
+        painel de WhatsApp e leva junto o estado local dele — foi assim que o
+        PIN recém-gerado sumia da tela: era gerado e gravado, e a recarga que
+        eu disparava logo em seguida apagava a exibição.
+      */}
+      {(carregandoEquipe && !equipe) || (carregandoConvites && !convites) ? (
         <Skeleton className="h-32 rounded-lg" />
       ) : (
         <>

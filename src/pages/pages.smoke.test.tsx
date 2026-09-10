@@ -300,6 +300,14 @@ describe('Configuracoes — verificacao por PIN', () => {
     expect(await screen.findByText('482913')).toBeInTheDocument()
     // O número precisa aparecer junto: o PIN só vale vindo daquele aparelho.
     expect(screen.getAllByText(/\(31\) 99999-8888/).length).toBeGreaterThan(0)
+
+    /*
+      E precisa CONTINUAR na tela depois que a recarga da lista terminar.
+      Sem esta espera o teste passava por sorte: ele encontrava o PIN no
+      instante entre gerar e a recarga desmontar o painel.
+    */
+    await waitFor(() => expect(screen.getByText('dono@exemplo.com')).toBeInTheDocument())
+    expect(screen.getByText('482913')).toBeInTheDocument()
   })
 
   it('nao oferece PIN para quem ainda nao tem numero cadastrado', async () => {
