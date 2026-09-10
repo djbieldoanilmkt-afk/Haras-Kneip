@@ -78,6 +78,17 @@ export type PesagemResumo = {
   variacao: number | null
 }
 
+/** Resposta da Edge Function whatsapp-conexao. */
+export type EstadoWhatsapp = {
+  estado: 'open' | 'connecting' | 'close' | 'erro'
+  /** Data URI do QR; só vem na ação `conectar`. */
+  qr?: string | null
+  /** Número que atendeu ao QR; só se descobre depois da sessão abrir. */
+  numero?: string | null
+  instancia?: string
+  erro?: string
+}
+
 export type CustoPorMes = { mes: string; total: number }
 export type CustoPorAnimal = { animal_id: string; animal: string; total: number }
 export type CustoPorCategoria = { categoria: string; total: number }
@@ -753,6 +764,23 @@ export const store = {
       p_id: id,
     })
     if (error) throw error
+  },
+
+  // --------------------------------------------------- conexao whatsapp
+
+  /**
+   * Conversa com a Edge Function, e não com a Evolution.
+   *
+   * A credencial da Evolution não pode passar por aqui: tudo neste arquivo
+   * vai para o bundle, que é público. A função é quem guarda a chave.
+   */
+  async conexaoWhatsapp(acao: 'estado' | 'conectar' | 'desconectar'): Promise<EstadoWhatsapp> {
+    const { data, error } = await supabase.functions.invoke('whatsapp-conexao', {
+      body: { acao },
+    })
+    if (error) throw new Error(error.message)
+    if ((data as { erro?: string })?.erro) throw new Error((data as { erro: string }).erro)
+    return data as EstadoWhatsapp
   },
 
   // ------------------------------------------------------------- equipe

@@ -76,6 +76,7 @@ vi.mock('@/lib/store', () => ({
       created_at: '2026-01-01',
     }),
     salvarTelefone: vi.fn().mockResolvedValue(undefined),
+    conexaoWhatsapp: vi.fn().mockResolvedValue({ estado: 'close' }),
     getMinhaEquipe: vi.fn().mockResolvedValue([
       {
         user_id: 'u1',
@@ -328,5 +329,45 @@ describe('Configuracoes — um campo de telefone so', () => {
     // estava no banco.
     expect(screen.queryByLabelText('Seu número')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Salvar telefone' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Configuracoes — conexao do WhatsApp', () => {
+  function render(papel: 'dono' | 'peao' = 'dono') {
+    renderPage(
+      <TenantProvider value={{ haras: HARAS, papel, recarregar: () => {} }}>
+        <Configuracoes />
+      </TenantProvider>,
+      { papel },
+    )
+  }
+
+  it('oferece a conexao ao dono', async () => {
+    render('dono')
+    await waitFor(() => expect(screen.getByText('Número do assistente')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Conectar WhatsApp/ })).toBeInTheDocument()
+  })
+
+  it('nao mostra a conexao para o peao', async () => {
+    render('peao')
+    await waitFor(() => expect(screen.getByText('Equipe')).toBeInTheDocument())
+    // A sessão vale para o haras inteiro; conectar é ato de dono.
+    expect(screen.queryByText('Número do assistente')).not.toBeInTheDocument()
+  })
+
+  it('mostra o QR depois de pedir a conexao', async () => {
+    const usuario = userEvent.setup()
+    const { store } = await import('@/lib/store')
+    vi.mocked(store.conexaoWhatsapp).mockResolvedValueOnce({ estado: 'close' })
+    vi.mocked(store.conexaoWhatsapp).mockResolvedValueOnce({
+      estado: 'connecting',
+      qr: 'data:image/png;base64,AAAA',
+    })
+
+    render('dono')
+    await usuario.click(await screen.findByRole('button', { name: /Conectar WhatsApp/ }))
+
+    const img = await screen.findByAltText('QR Code para conectar o WhatsApp')
+    expect(img).toHaveAttribute('src', 'data:image/png;base64,AAAA')
   })
 })

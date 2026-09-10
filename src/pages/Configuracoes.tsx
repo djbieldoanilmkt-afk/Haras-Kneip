@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { iniciais } from '@/components/AnimalCard'
 import { PRODUTO } from '@/lib/produto'
 import { SecaoEquipe } from '@/components/configuracoes/SecaoEquipe'
+import { SecaoConexaoWhatsapp } from '@/components/configuracoes/SecaoConexaoWhatsapp'
 
 /** Identidade da conta: o que aparece no sistema e na vitrine pública. */
 function SecaoIdentidade() {
@@ -214,6 +215,8 @@ export default function Configuracoes() {
       <PageHeader title="Configurações" description="Dados do haras e gestão dos registros" />
 
       <SecaoIdentidade />
+
+      <SecaoConexaoWhatsapp />
 
       <SecaoEquipe />
 
