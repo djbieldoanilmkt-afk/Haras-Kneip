@@ -183,6 +183,12 @@ const AJUDA = [
   '',
   '☀️ Todo dia de manhã eu aviso o que vence e o que está atrasado.',
   '',
+  '*🎧 Áudio, do seu jeito:*',
+  '• Mandou áudio, respondo em áudio. Digitou, respondo em texto.',
+  '• _"Repete em áudio"_ — eu falo a última resposta.',
+  '• _"Só texto"_ ou _"para de mandar áudio"_ — eu paro de falar.',
+  '• _"Responde sempre em áudio"_ — eu falo até quando você digitar.',
+  '',
   'Antes de gravar eu sempre confirmo. Responda *sim* ou *não*.',
 ].join('\n')
 
@@ -431,12 +437,20 @@ function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
       ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids)'
       : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_despesa)',
     '- consultar_custos: animal_id, desde, ate, termo',
-    '- consultar_animais: status, local, termo',
+    '- consultar_animais: status, sexo, local, termo (sexo para "éguas"/"garanhões";',
+    '    termo SÓ para pedaço de NOME de animal, nunca para "égua" ou "potro")',
     '- consultar_agenda: dias',
     '- consultar_ficha: animal_id — resumo completo de UM animal',
     '- consultar_vitrine: link público do plantel, para mandar a compradores',
     '- mostrar_foto: animal_id — a pessoa quer VER a foto do animal',
     '- desfazer: apagar o último lançamento (errei, apaga isso, cancela o que lancei)',
+    '- repetir_em_audio: quer ouvir A ÚLTIMA RESPOSTA, UMA VEZ. Pedido pontual,',
+    '    sobre o que você acabou de dizer: "repete em áudio", "manda isso por voz",',
+    '    "fala essa resposta", "não deu para ler, manda falando".',
+    '- preferir_voz: modo — muda a REGRA daqui em diante, não repete nada.',
+    '    modo "nunca" para "para de mandar áudio", "só texto", "não gosto de áudio";',
+    '    modo "sempre" para "responde sempre em áudio", "de agora em diante fale";',
+    '    modo "auto" para "volta ao normal", "responde como antes".',
     '- confirmar: a pessoa concorda (sim, isso, pode lançar)',
     '- cancelar: desiste ou corrige (não, cancela, deixa pra lá)',
     '- ajuda: pergunta o que você faz',
@@ -454,7 +468,11 @@ function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
     '7. `cancelar` é largar o que está sendo preenchido AGORA, antes de gravar.',
     '   `desfazer` é apagar algo que JÁ foi gravado. "Não, deixa pra lá" no meio',
     '   de um cadastro é cancelar; "apaga aquela vacina que lancei" é desfazer.',
-    '8. Em lancar_sanidade_lote, `animais` é uma lista de ids. "Todos", "o lote',
+    '8. "Repete em áudio" é repetir_em_audio, NÃO preferir_voz: a pessoa quer',
+    '   ouvir aquela resposta agora, não mudar a regra para sempre. Só é',
+    '   preferir_voz quando ela fala do futuro ("de agora em diante", "sempre",',
+    '   "para de", "nunca mais").',
+    '9. Em lancar_sanidade_lote, `animais` é uma lista de ids. "Todos", "o lote',
     '   inteiro", "as éguas" viram a lista correspondente da relação abaixo.',
     '   Para UM animal só, use lancar_sanidade, não o lote.',
     '',
@@ -873,6 +891,7 @@ async function consultar(acao: string, user: string, d: Dados, harasId: string):
       p_status: d.status ?? null,
       p_local: d.local ?? null,
       p_termo: d.termo ?? null,
+      p_sexo: d.sexo ?? null,
     })
     if (error) throw new Error(error.message)
     const linhas = (data ?? []) as Dados[]
@@ -983,6 +1002,8 @@ async function boasVindas(userId: string, harasId: string): Promise<string> {
     ...perguntar,
     '',
     '📸 Mande a *foto* de um animal que eu anexo à ficha dele.',
+    '',
+    '🎧 Se você me mandar *áudio*, eu respondo *falando*. Digitou, respondo em texto. E se preferir, é só dizer _"só texto"_ ou _"responde sempre em áudio"_.',
     '',
     '⚠️ *Antes de gravar eu confirmo com você.* Se faltar algum dado, eu pergunto — nunca invento.',
     '',
@@ -1116,11 +1137,24 @@ Deno.serve(async (req) => {
 
   // ------------------------------------------------------------------ áudio
   const veioDeAudio = Boolean(audio)
+  const modoVoz = String(membro.voz ?? 'auto')
 
-  /** Texto sempre; voz só para quem falou. */
-  const responder = async (resposta: string) => {
+  /**
+   * Texto sempre; voz conforme a pessoa escolheu.
+   *
+   * `soTexto` é para o que não faz sentido ouvir: formulário numerado lido em
+   * voz alta é impossível de acompanhar — a pessoa perde a ordem no item 3 e
+   * tem de ouvir tudo de novo. Isso vale mesmo no modo "sempre".
+   */
+  const responder = async (resposta: string, soTexto = false) => {
     await enviar(instancia, numero, resposta)
-    if (!veioDeAudio) return
+
+    // Guarda para o "repete em áudio", inclusive o que não foi falado agora.
+    await supabase.rpc('agente_guardar_resposta', { p_user: user, p_texto: resposta })
+
+    if (soTexto || modoVoz === 'nunca') return
+    if (modoVoz === 'auto' && !veioDeAudio) return
+
     const voz = await falar(resposta)
     if (voz) await enviarAudio(instancia, numero, voz)
   }
@@ -1149,7 +1183,7 @@ Deno.serve(async (req) => {
   )
 
   if (leitura.acao === 'ajuda') {
-    await responder(AJUDA)
+    await responder(AJUDA, true)
     return new Response('ok')
   }
 
@@ -1187,6 +1221,47 @@ Deno.serve(async (req) => {
     } catch (e) {
       await limpar()
       await responder(`❌ Não consegui gravar: ${e instanceof Error ? e.message : 'erro'}`)
+    }
+    return new Response('ok')
+  }
+
+  if (leitura.acao === 'preferir_voz') {
+    const { data: modo, error } = await supabase.rpc('agente_definir_voz', {
+      p_user: user,
+      p_modo: String(leitura.dados.modo ?? 'auto'),
+    })
+    if (error) {
+      await enviar(instancia, numero, `❌ Não consegui mudar: ${error.message}`)
+      return new Response('ok')
+    }
+
+    const aviso: Record<string, string> = {
+      nunca: '🔇 Certo, *só texto* daqui em diante. Se mudar de ideia, é só pedir _"pode voltar a mandar áudio"_.',
+      sempre: '🔊 Combinado, vou *sempre responder em áudio* — inclusive quando você digitar.',
+      auto: '🎧 Voltei ao normal: *respondo em áudio quando você mandar áudio*, e só texto quando você digitar.',
+    }
+    // Sem voz nesta: confirmar "não mande mais áudio" mandando um áudio seria
+    // desobedecer no exato momento de concordar.
+    await enviar(instancia, numero, aviso[String(modo)] ?? aviso.auto)
+    return new Response('ok')
+  }
+
+  if (leitura.acao === 'repetir_em_audio') {
+    const { data: anterior } = await supabase.rpc('agente_ultima_resposta', { p_user: user })
+    const texto3 = String(anterior ?? '').trim()
+    if (!texto3) {
+      await enviar(instancia, numero, 'Ainda não te respondi nada para repetir. 🙂')
+      return new Response('ok')
+    }
+
+    const voz = await falar(texto3)
+    if (voz) await enviarAudio(instancia, numero, voz)
+    else {
+      await enviar(
+        instancia,
+        numero,
+        'Não consegui gerar o áudio agora — a resposta acima continua valendo.',
+      )
     }
     return new Response('ok')
   }
@@ -1301,7 +1376,7 @@ Deno.serve(async (req) => {
       },
       { onConflict: 'telefone' },
     )
-    await responder(ROTEIRO[leitura.acao])
+    await responder(ROTEIRO[leitura.acao], true)
     return new Response('ok')
   }
 
