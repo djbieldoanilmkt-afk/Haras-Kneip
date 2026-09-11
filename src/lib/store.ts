@@ -143,6 +143,14 @@ export type NovaReceita = {
 /** Entrou, saiu, sobrou — no mesmo período. */
 export type ResumoFinanceiro = { receitas: number; despesas: number; saldo: number }
 
+/** Quanto custa manter cada categoria do plantel. */
+export type CustoCategoria = {
+  categoria: string
+  animais: number
+  custoTotal: number
+  custoMedio: number
+}
+
 /** Diagnostico do agente: o que esta errado, nao so que esta errado. */
 export type SaudeDoAgente = {
   saudavel: boolean
@@ -887,6 +895,27 @@ export const store = {
       ultima_mensagem_em: l.ultima_mensagem_em ? String(l.ultima_mensagem_em) : null,
       verificado_em: l.verificado_em ? String(l.verificado_em) : null,
     }
+  },
+
+  /**
+   * Custo por categoria de animal: egua, garanhao, potro, potra, castrado.
+   *
+   * Soma as DUAS fontes de custo -- o que passou pelo veterinario e a parte do
+   * animal nas despesas rateadas. Usar so uma delas da um numero que parece
+   * certo e esta pela metade.
+   */
+  async getCustoPorCategoria(): Promise<CustoCategoria[]> {
+    const { data, error } = await supabase.rpc('custo_por_categoria', {
+      p_desde: null,
+      p_ate: null,
+    })
+    if (error) throw error
+    return ((data ?? []) as Record<string, unknown>[]).map((l) => ({
+      categoria: String(l.categoria ?? ''),
+      animais: Number(l.animais ?? 0),
+      custoTotal: Number(l.custo_total ?? 0),
+      custoMedio: Number(l.custo_medio ?? 0),
+    }))
   },
 
   // ------------------------------------------------------------- lixeira

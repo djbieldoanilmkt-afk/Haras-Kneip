@@ -7,6 +7,7 @@ import { StatCard } from '@/components/StatCard'
 import { PelagemChart } from '@/components/charts/PelagemChart'
 import { StatusChart } from '@/components/charts/StatusChart'
 import { IdadeChart } from '@/components/charts/IdadeChart'
+import { CustoPorCategoria } from '@/components/relatorios/CustoPorCategoria'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -139,6 +140,8 @@ export default function Relatorios() {
             </div>
           )}
         </Card>
+
+        <CustoPorCategoria />
 
         <Card className="p-4 lg:col-span-2">
           <h2 className="mb-3 text-sm font-semibold">Distribuição por idade</h2>
