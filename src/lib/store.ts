@@ -143,6 +143,17 @@ export type NovaReceita = {
 /** Entrou, saiu, sobrou — no mesmo período. */
 export type ResumoFinanceiro = { receitas: number; despesas: number; saldo: number }
 
+/** Diagnostico do agente: o que esta errado, nao so que esta errado. */
+export type SaudeDoAgente = {
+  saudavel: boolean
+  motivo: 'ok' | 'nunca_conectado' | 'whatsapp_desconectado' | 'sem_credito' | 'erro'
+  detalhe: string
+  whatsapp_estado: string | null
+  credito_usd: number | null
+  ultima_mensagem_em: string | null
+  verificado_em: string | null
+}
+
 /** Uma linha da lixeira: o que foi excluido e de onde veio. */
 export type ItemDaLixeira = {
   tabela: TabelaReversivel
@@ -858,6 +869,23 @@ export const store = {
       receitas: Number(linha?.receitas ?? 0),
       despesas: Number(linha?.despesas ?? 0),
       saldo: Number(linha?.saldo ?? 0),
+    }
+  },
+
+  /** Como esta o agente. Nulo quando o vigia ainda nao passou nenhuma vez. */
+  async getSaudeDoAgente(): Promise<SaudeDoAgente | null> {
+    const { data, error } = await supabase.rpc('saude_do_agente')
+    if (error) throw error
+    const l = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null
+    if (!l) return null
+    return {
+      saudavel: Boolean(l.saudavel),
+      motivo: String(l.motivo ?? 'ok') as SaudeDoAgente['motivo'],
+      detalhe: String(l.detalhe ?? ''),
+      whatsapp_estado: l.whatsapp_estado ? String(l.whatsapp_estado) : null,
+      credito_usd: l.credito_usd === null || l.credito_usd === undefined ? null : Number(l.credito_usd),
+      ultima_mensagem_em: l.ultima_mensagem_em ? String(l.ultima_mensagem_em) : null,
+      verificado_em: l.verificado_em ? String(l.verificado_em) : null,
     }
   },
 
