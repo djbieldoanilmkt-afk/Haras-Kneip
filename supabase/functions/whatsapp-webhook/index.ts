@@ -59,6 +59,9 @@ type Dados = Record<string, unknown>
  *  transformar "as éguas" ou "as prenhas" numa lista de ids. */
 type Cavalo = { id: string; nome: string; sexo: string; status: string }
 
+/** Evento que o agente pode citar ao agrupar uma despesa. */
+type EventoDoHaras = { titulo: string; quando: string }
+
 /** Campos sem os quais não dá para gravar. O resto entra depois, pela tela. */
 const OBRIGATORIOS: Record<string, string[]> = {
   cadastrar_animal: ['nome', 'sexo'],
@@ -473,7 +476,11 @@ async function falar(texto: string): Promise<string | null> {
   }
 }
 
-function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
+function instrucoes(
+  plantel: Cavalo[],
+  veFinanceiro: boolean,
+  eventos: EventoDoHaras[],
+): string {
   return [
     'Você é o assistente de um haras de Mangalarga Marchador, no Brasil.',
     'Lê mensagens de voz transcritas e texto informal de quem trabalha no campo.',
@@ -503,11 +510,15 @@ function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
     '- lancar_evento: titulo, tipo, data, animal_id, descricao — compromisso do calendário',
     '- lancar_sanidade_lote: animais (LISTA de ids), tipo, descricao, data, proxima_data, custo',
     veFinanceiro
-      ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids).\n' +
+      ? '- lancar_despesa: categoria, descricao, valor, data, fornecedor, animais (lista de ids),\n' +
+        '    evento (NOME do evento, quando o gasto for de uma prova/exposição).\n' +
         '    A categoria é UM destes rótulos, escrito assim:\n' +
         '    Ração e suplemento | Ferrageamento | Veterinário | Medicamento |\n' +
         '    Mão de obra | Transporte | Manutenção | Taxas e registro | Outros.\n' +
-        '    NUNCA invente outro rótulo, e nunca sugira rótulo fora desta lista.'
+        '    NUNCA invente outro rótulo, e nunca sugira rótulo fora desta lista.\n' +
+        '    O campo `evento` agrupa o gasto numa prova: carreto, inscrição,\n' +
+        '    alimentação e diárias da Copa entram todos nela. Só preencha quando\n' +
+        '    a pessoa CITAR o evento; use o nome da lista de eventos abaixo.'
       : '- (esta pessoa NÃO tem acesso ao financeiro; nunca use lancar_despesa)',
     veFinanceiro
       ? '- lancar_receita: categoria, descricao, valor, data, cliente, animal_id, forma_pagamento.\n' +
@@ -572,8 +583,11 @@ async function entender(
   plantel: Cavalo[],
   veFinanceiro: boolean,
   pendente: { acao: string; dados: Dados } | null,
+  eventos: EventoDoHaras[],
 ): Promise<Leitura> {
-  const mensagens: Dados[] = [{ role: 'system', content: instrucoes(plantel, veFinanceiro) }]
+  const mensagens: Dados[] = [
+    { role: 'system', content: instrucoes(plantel, veFinanceiro, eventos) },
+  ]
 
   if (pendente) {
     mensagens.push({
@@ -710,6 +724,9 @@ function resumo(acao: string, d: Dados, plantel: Cavalo[]): string {
     linhas.push(`📝 ${d.descricao}`)
     linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
     if (d.fornecedor) linhas.push(`🏪 ${d.fornecedor}`)
+    // O evento aparece na confirmacao: e o unico momento de pegar "Copa de
+    // Marco" entendida como outro evento de nome parecido.
+    if (d.evento) linhas.push(`🏆 Evento: ${d.evento}`)
     const animais = (d.animais as string[]) ?? []
     if (animais.length > 0) {
       const cada = Number(d.valor ?? 0) / animais.length
@@ -942,9 +959,14 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
       p_valor: d.valor,
       p_fornecedor: d.fornecedor ?? null,
       p_animais: (d.animais as string[]) ?? null,
+      p_evento: d.evento ?? null,
     })
     if (error) throw new Error(error.message)
-    return { mensagem: '✅ Despesa lançada. Já aparece no Financeiro.' }
+    return {
+      mensagem: d.evento
+        ? `✅ Despesa lançada em *${d.evento}*. Já aparece no Financeiro e no custo do evento.`
+        : '✅ Despesa lançada. Já aparece no Financeiro.',
+    }
   }
 
   throw new Error('Ação desconhecida.')
@@ -1248,6 +1270,16 @@ Deno.serve(async (req) => {
   const harasId = String(membro.haras_id)
   const veFinanceiro = membro.papel === 'dono' || membro.papel === 'gerente'
 
+  // Só quem vê financeiro precisa da lista: é ela que alimenta o agrupamento
+  // de despesa por evento.
+  const { data: eventosBruto } = veFinanceiro
+    ? await supabase.rpc('agente_eventos', { p_user: user })
+    : { data: [] }
+  const eventosDoHaras: EventoDoHaras[] = ((eventosBruto ?? []) as Dados[]).map((e) => ({
+    titulo: String(e.titulo ?? ''),
+    quando: dia(e.data_evento),
+  }))
+
   const { data: plantelBruto } = await supabase.rpc('agente_plantel', { p_user: user })
   const plantel: Cavalo[] = ((plantelBruto ?? []) as Dados[]).map((a) => ({
     id: String(a.id),
@@ -1343,6 +1375,7 @@ Deno.serve(async (req) => {
     plantel,
     veFinanceiro,
     pendente ? { acao: String(pendente.acao), dados: pendente.dados as Dados } : null,
+    eventosDoHaras,
   )
 
   if (leitura.acao === 'ajuda') {

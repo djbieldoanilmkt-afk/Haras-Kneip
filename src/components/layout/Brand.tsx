@@ -17,10 +17,11 @@ export function Brand({
   return (
     <div className={cn('flex min-w-0 items-center gap-2.5', className)}>
       {logoUrl ? (
+        // Mesma razao da vitrine: recorte quadrado corta logo oval.
         <img
           src={logoUrl}
-          alt=""
-          className="size-8 shrink-0 rounded-lg object-cover"
+          alt={nome}
+          className="h-8 w-auto max-w-[112px] shrink-0 object-contain"
         />
       ) : (
         <div className="bg-primary text-primary-foreground font-brand flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold">

@@ -122,10 +122,17 @@ export default function PlantelPublico() {
 
         <div className="relative">
           {haras?.logo_url ? (
+            /*
+              `object-contain` e largura livre, nao `size-14 object-cover`.
+
+              A logo do haras e oval e larga; uma caixa quadrada com recorte
+              cortava as laterais e comia o nome. Aqui ela e a primeira coisa
+              que o comprador ve — tem de aparecer inteira.
+            */
             <img
               src={haras.logo_url}
-              alt=""
-              className="mx-auto mb-4 size-14 rounded-xl object-cover"
+              alt={haras.nome}
+              className="mx-auto mb-4 h-24 w-auto max-w-[260px] object-contain sm:h-28"
             />
           ) : (
             <div className="font-brand mx-auto mb-4 flex size-14 items-center justify-center rounded-xl bg-[#1E5B3A] text-lg font-bold text-white">
