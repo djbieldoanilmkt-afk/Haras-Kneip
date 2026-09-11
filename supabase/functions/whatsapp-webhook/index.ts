@@ -180,6 +180,7 @@ const AJUDA = [
   '• _"Marca o veterinário para sexta"_',
   '',
   '*Para perguntar:*',
+  '• _"Como está o haras?"_ — resumo do que foi feito e do que precisa de atenção',
   '• _"Me mostra a ficha da Estrela"_',
   '• _"Quais éguas estão prenhas?"_',
   '• _"O que vence nos próximos 30 dias?"_',
@@ -533,6 +534,9 @@ function instrucoes(
     '- consultar_animais: status, sexo, local, termo (sexo para "éguas"/"garanhões";',
     '    termo SÓ para pedaço de NOME de animal, nunca para "égua" ou "potro")',
     '- consultar_agenda: dias',
+    '- consultar_resumo: "como está o haras?", "me dá um resumo", "o que andou',
+    '    acontecendo?", "novidades?", "como foi a semana?" — panorama do que JÁ',
+    '    foi feito, o que precisa de atenção e o caixa do mês.',
     '- consultar_ficha: animal_id — resumo completo de UM animal',
     '- consultar_vitrine: link público do plantel, para mandar a compradores',
     '- mostrar_foto: animal_id — a pessoa quer VER a foto do animal',
@@ -1026,6 +1030,12 @@ async function consultar(acao: string, user: string, d: Dados, harasId: string):
       '',
       '_Pode mandar esse link para comprador. Aparecem só os animais marcados como destaque._',
     ].join('\n')
+  }
+
+  if (acao === 'consultar_resumo') {
+    const { data, error } = await supabase.rpc('agente_resumo_geral', { p_user: user })
+    if (error) throw new Error(error.message)
+    return String(data ?? 'Não consegui montar o resumo agora.')
   }
 
   if (acao === 'consultar_receitas') {
