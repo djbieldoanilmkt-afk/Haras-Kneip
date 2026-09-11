@@ -111,15 +111,19 @@ const ROTEIRO: Record<string, string> = {
   lancar_reproducao: [
     '📋 *Evento reprodutivo*',
     '',
-    '1️⃣ Qual égua',
+    '1️⃣ Qual égua *é a mãe* (na transferência, a doadora)',
     '2️⃣ O que aconteceu (cobertura, diagnóstico, parto, desmame, cio, aborto)',
     '3️⃣ Quando',
     '4️⃣ Garanhão (se foi cobertura)',
     '5️⃣ Método (monta natural, inseminação, transferência de embrião)',
+    '6️⃣ *Receptora* — só se foi transferência de embrião',
     '',
     '_Ex.: "Aurora, cobertura, ontem, Imperador do Vale, monta natural"_',
+    '_Ex. com transferência: "embrião da Aurora com o Imperador, receptora Fumaça"_',
     '',
     'Se for cobertura, eu já calculo o parto previsto.',
+    '',
+    '⚠️ Na transferência, a *mãe* é a doadora — é ela que vai para a árvore do potro. A receptora só gesta.',
   ].join('\n'),
 
   lancar_sanidade: [
@@ -481,7 +485,19 @@ function instrucoes(plantel: Cavalo[], veFinanceiro: boolean): string {
     '- cadastrar_animal: nome, sexo, pelagem, data_nascimento, tipo_marcha, registro_abccmm, baia_piquete',
     '- lancar_sanidade: animal_id, tipo, descricao, data, proxima_data, custo, veterinario',
     '- lancar_pesagem: animal_id, peso, data, observacoes',
-    '- lancar_reproducao: animal_id, tipo, data, garanhao, metodo, data_prevista_parto',
+    '- lancar_reproducao: animal_id, tipo, data, garanhao, metodo, data_prevista_parto,',
+    '    receptora (NOME da égua que gesta, só em transferência de embrião).',
+    '    ATENÇÃO, aqui erra caro: `animal_id` é sempre a MÃE GENÉTICA — a',
+    '    doadora, de quem veio o embrião. A receptora é quem carrega e pare, e',
+    '    vai em `receptora`, NUNCA em animal_id. Trocar as duas grava o potro',
+    '    com a mãe errada na árvore genealógica.',
+    '    "Transferi embrião da Aurora para a Fumaça" => animal_id = Aurora,',
+    '    receptora = "Fumaça". Sem transferência, deixe `receptora` vazio.',
+    '    E não confunda os dois campos: `tipo` é O QUE aconteceu (Cobertura,',
+    '    Diagnóstico de Gestação, Parto, Desmame, Cio, Aborto) e `metodo` é COMO',
+    '    (Monta Natural, Inseminação Artificial, Transferência de Embrião).',
+    '    "Fiz transferência de embrião" => tipo "Cobertura",',
+    '    metodo "Transferência de Embrião". Transferência NUNCA é o tipo.',
     '- definir_pais: animal_id, pai (NOME do pai), mae (NOME da mãe)',
     '- lancar_anotacao: animal_id, titulo, conteudo, data — observação solta sobre um animal',
     '- lancar_evento: titulo, tipo, data, animal_id, descricao — compromisso do calendário',
@@ -664,7 +680,21 @@ function resumo(acao: string, d: Dados, plantel: Cavalo[]): string {
     linhas.push('⚖️ *Pesagem*', '', `*${nomeDoAnimal(plantel, d.animal_id)}* — ${d.peso} kg`)
     linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
   } else if (acao === 'lancar_reproducao') {
-    linhas.push('💕 *Reprodução*', '', `${d.tipo} — *${nomeDoAnimal(plantel, d.animal_id)}*`)
+    linhas.push('💕 *Reprodução*', '', `${d.tipo}`)
+    /*
+      Na transferência, as DUAS éguas aparecem com o papel escrito.
+
+      É a última chance de pegar a troca antes de gravar: confirmar só "Aurora"
+      não deixa ver se Aurora entrou como doadora ou como receptora — e o erro
+      só aparece meses depois, na árvore do potro.
+    */
+    if (d.receptora) {
+      linhas.push(`🧬 Mãe (doadora): *${nomeDoAnimal(plantel, d.animal_id)}*`)
+      linhas.push(`🤰 Gesta (receptora): *${d.receptora}*`)
+      linhas.push('_O potro vai para a árvore como filho da doadora._')
+    } else {
+      linhas.push(`🐴 Égua: *${nomeDoAnimal(plantel, d.animal_id)}*`)
+    }
     if (d.garanhao) linhas.push(`🐎 Garanhão: ${d.garanhao}`)
     if (d.metodo) linhas.push(`🔬 ${d.metodo}`)
     linhas.push(`📅 ${dia(d.data ?? new Date().toISOString())}`)
@@ -826,6 +856,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
       p_metodo: d.metodo ?? null,
       p_data_prevista_parto: d.data_prevista_parto ?? null,
       p_resultado: d.resultado ?? null,
+      p_receptora: d.receptora ?? null,
     })
     if (error) throw new Error(error.message)
     return { mensagem: '✅ Evento reprodutivo lançado.' }

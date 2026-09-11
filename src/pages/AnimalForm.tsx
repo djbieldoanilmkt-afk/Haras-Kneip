@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAsync } from '@/hooks/useAsync'
 import { store } from '@/lib/store'
-import { PELAGENS, STATUS_REPRODUTIVO, TIPOS_MARCHA } from '@/lib/status'
+import { FUNCOES_REPRODUTIVAS, PELAGENS, TIPOS_MARCHA, statusPorSexo } from '@/lib/status'
 import { validateAnimal } from '@/lib/validators'
 import type { Animal, Sexo } from '@/lib/database.types'
 
@@ -30,6 +30,7 @@ type Formulario = {
   altura: string
   baia_piquete: string
   status_reprodutivo: string
+  funcao_reprodutiva: string
   status_saude: string
   premiacao: string
   foto_url: string
@@ -49,6 +50,7 @@ const VAZIO: Formulario = {
   altura: '',
   baia_piquete: '',
   status_reprodutivo: 'Vazia',
+  funcao_reprodutiva: '',
   status_saude: 'Saudável',
   premiacao: '',
   foto_url: '',
@@ -96,6 +98,7 @@ export default function AnimalForm() {
       altura: animal.altura != null ? String(animal.altura) : '',
       baia_piquete: animal.baia_piquete ?? '',
       status_reprodutivo: animal.status_reprodutivo ?? 'Vazia',
+      funcao_reprodutiva: animal.funcao_reprodutiva ?? '',
       status_saude: animal.status_saude ?? 'Saudável',
       premiacao: animal.premiacao ?? '',
       foto_url: animal.foto_url ?? '',
@@ -105,6 +108,25 @@ export default function AnimalForm() {
 
   const definir = <K extends keyof Formulario>(campo: K, valor: Formulario[K]) =>
     setForm((f) => ({ ...f, [campo]: valor }))
+
+  /**
+   * Trocar o sexo reajusta o que depende dele.
+   *
+   * O banco recusa "macho vazia" e "fêmea castrada". Sem este ajuste, marcar
+   * uma égua como macho deixaria 'Vazia' para trás e o formulário só falharia
+   * na hora de salvar — com erro de restrição, que não diz o que fazer.
+   */
+  function trocarSexo(novoSexo: Sexo) {
+    setForm((f) => ({
+      ...f,
+      sexo: novoSexo,
+      status_reprodutivo: statusPorSexo(novoSexo).includes(f.status_reprodutivo)
+        ? f.status_reprodutivo
+        : (statusPorSexo(novoSexo)[0] ?? ''),
+      // Doadora, matriz e receptora são papéis de égua.
+      funcao_reprodutiva: novoSexo === 'Fêmea' ? f.funcao_reprodutiva : '',
+    }))
+  }
 
   function anexarFoto(arquivo: File) {
     const leitor = new FileReader()
@@ -132,6 +154,10 @@ export default function AnimalForm() {
       altura: form.altura ? Number(form.altura) : null,
       baia_piquete: form.baia_piquete || null,
       status_reprodutivo: form.status_reprodutivo,
+      // Vazio vira nulo: '' nao passa na restricao da coluna, e macho
+      // nunca tem funcao reprodutiva.
+      funcao_reprodutiva:
+        form.sexo === 'Fêmea' && form.funcao_reprodutiva ? form.funcao_reprodutiva : null,
       status_saude: form.status_saude || null,
       premiacao: form.premiacao || null,
       foto_url: form.foto_url || null,
@@ -234,7 +260,7 @@ export default function AnimalForm() {
           <Campo label="Sexo">
             <SelectSimples
               value={form.sexo}
-              onValueChange={(v) => definir('sexo', v as Sexo)}
+              onValueChange={(v) => trocarSexo(v as Sexo)}
               options={SEXOS}
             />
           </Campo>
@@ -284,9 +310,26 @@ export default function AnimalForm() {
             <SelectSimples
               value={form.status_reprodutivo}
               onValueChange={(v) => definir('status_reprodutivo', v)}
-              options={STATUS_REPRODUTIVO}
+              options={statusPorSexo(form.sexo)}
             />
           </Campo>
+          {/*
+            Função só para fêmea: doadora, matriz e receptora são papéis de
+            égua. Oferecer a um garanhão seria oferecer uma resposta errada.
+          */}
+          {form.sexo === 'Fêmea' && (
+            <Campo
+              label="Função reprodutiva"
+              hint="Matriz cria o próprio potro; doadora dá o embrião; receptora gesta o embrião de outra."
+            >
+              <SelectSimples
+                value={form.funcao_reprodutiva}
+                onValueChange={(v) => definir('funcao_reprodutiva', v)}
+                options={FUNCOES_REPRODUTIVAS}
+                placeholder="Não definida"
+              />
+            </Campo>
+          )}
           <Campo label="Status de saúde" htmlFor="saude">
             <Input
               id="saude"

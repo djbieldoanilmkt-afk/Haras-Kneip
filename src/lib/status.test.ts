@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   statusClasses,
-  STATUS_REPRODUTIVO,
+  FUNCOES_REPRODUTIVAS,
+  statusPorSexo,
   PELAGENS,
   TIPOS_MARCHA,
   TIPOS_EVENTO,
@@ -24,23 +25,42 @@ describe('statusClasses', () => {
     expect(statusClasses('Potro/Potra')).toBe('bg-status-potro/12 text-status-potro')
   })
 
+  it('mapeia os status de macho', () => {
+    // 'Garanhao Ativo' era usado aqui como exemplo de status DESCONHECIDO.
+    // Deixou de ser: a tela ja oferecia a opcao, so o banco e as cores e que
+    // nao a conheciam.
+    expect(statusClasses('Garanhão Ativo')).toBe('bg-status-cobertura/12 text-status-cobertura')
+    expect(statusClasses('Castrado')).toBe('bg-muted text-muted-foreground')
+  })
+
   it('cai no neutro para status desconhecido ou ausente', () => {
-    expect(statusClasses('Garanhão Ativo')).toBe('bg-muted text-muted-foreground')
+    expect(statusClasses('Inventado')).toBe('bg-muted text-muted-foreground')
     expect(statusClasses(null)).toBe('bg-muted text-muted-foreground')
     expect(statusClasses(undefined)).toBe('bg-muted text-muted-foreground')
   })
 })
 
 describe('listas do dominio', () => {
-  it('STATUS_REPRODUTIVO contem as opcoes do formulario legado', () => {
-    expect(STATUS_REPRODUTIVO).toEqual([
-      'Vazia',
-      'Prenha',
-      'Lactante',
-      'Em Cobertura',
-      'Potro/Potra',
-      'Garanhão Ativo',
-    ])
+  it('a lista por sexo nao oferece status que o banco recusa', () => {
+    /*
+      A restricao `animais_status_combina_com_sexo` (migracao 033) recusa
+      "macho vazia" e "femea castrada". Se a tela oferecer o que o banco
+      recusa, a pessoa escolhe a opcao do menu e leva erro -- ja aconteceu
+      tres vezes neste projeto.
+    */
+    expect(statusPorSexo('Fêmea')).not.toContain('Castrado')
+    expect(statusPorSexo('Fêmea')).not.toContain('Garanhão Ativo')
+    expect(statusPorSexo('Macho')).not.toContain('Vazia')
+    expect(statusPorSexo('Macho')).not.toContain('Prenha')
+    expect(statusPorSexo('Macho')).toContain('Castrado')
+    expect(statusPorSexo('Macho')).toContain('Garanhão Ativo')
+    // Potro/Potra serve aos dois.
+    expect(statusPorSexo('Macho')).toContain('Potro/Potra')
+    expect(statusPorSexo('Fêmea')).toContain('Potro/Potra')
+  })
+
+  it('FUNCOES_REPRODUTIVAS espelha a restricao do banco', () => {
+    expect(FUNCOES_REPRODUTIVAS).toEqual(['Matriz', 'Doadora', 'Receptora'])
   })
 
   it('PELAGENS contem as dez opcoes do formulario legado', () => {

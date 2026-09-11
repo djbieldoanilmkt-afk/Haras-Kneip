@@ -114,6 +114,8 @@ export type Animal = {
   altura: number | null
   baia_piquete: string | null
   status_reprodutivo: string | null
+  /** Matriz, Doadora ou Receptora. So faz sentido para femea. */
+  funcao_reprodutiva: string | null
   status_saude: string | null
   premiacao: string | null
   foto_url: string | null
@@ -168,10 +170,16 @@ export type SaudeRegistro = {
  */
 export type Reproducao = {
   id: string
+  /**
+   * A mae GENETICA: doadora na transferencia de embriao, matriz na monta
+   * natural. E esta que a genealogia do potro usa.
+   */
   animal_id: string
   tipo: string
   garanhao: string | null
   metodo: string | null
+  /** Quem gesta e pare, so na transferencia de embriao. Fora da genealogia. */
+  receptora_id: string | null
   data_evento: string
   data_prevista_parto: string | null
   resultado: string | null

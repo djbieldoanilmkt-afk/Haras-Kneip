@@ -6,14 +6,36 @@
  * tokens, o que faz funcionar nos temas claro e escuro.
  */
 
-export const STATUS_REPRODUTIVO = [
+/*
+  Status reprodutivo, separado por sexo.
+
+  A lista unica oferecia 'Garanhao Ativo' para qualquer animal e o banco
+  RECUSAVA — quem escolhesse a opcao do menu levava erro de restricao. E
+  oferecer 'Vazia' (nao esta prenha) para um garanhao e oferecer uma resposta
+  sem sentido, que foi como "Diamante Negro VAZIA" acabou na vitrine publica.
+
+  Espelha `animais_status_combina_com_sexo`, na migracao 033. Mexeu aqui, mexa
+  no banco no mesmo passo.
+*/
+export const STATUS_FEMEA = [
   'Vazia',
   'Prenha',
   'Lactante',
   'Em Cobertura',
   'Potro/Potra',
-  'Garanhão Ativo',
 ] as const
+
+export const STATUS_MACHO = ['Garanhão Ativo', 'Castrado', 'Potro/Potra'] as const
+
+/** Todos, para filtros e listagens que nao sabem o sexo de antemao. */
+export const STATUS_REPRODUTIVO = [...STATUS_FEMEA, 'Garanhão Ativo', 'Castrado'] as const
+
+export function statusPorSexo(sexo: string): readonly string[] {
+  return sexo === 'Macho' ? STATUS_MACHO : STATUS_FEMEA
+}
+
+/** Papel da egua na reproducao, como o haras classifica (migracao 031). */
+export const FUNCOES_REPRODUTIVAS = ['Matriz', 'Doadora', 'Receptora'] as const
 
 export const PELAGENS = [
   'Alazã',
@@ -82,6 +104,8 @@ const CLASSES: Record<string, string> = {
   lactante: 'bg-status-lactante/12 text-status-lactante',
   'em cobertura': 'bg-status-cobertura/12 text-status-cobertura',
   'potro/potra': 'bg-status-potro/12 text-status-potro',
+  'garanhão ativo': 'bg-status-cobertura/12 text-status-cobertura',
+  castrado: 'bg-muted text-muted-foreground',
 }
 
 const NEUTRO = 'bg-muted text-muted-foreground'

@@ -20,6 +20,7 @@ const base: Animal = {
   altura: null,
   baia_piquete: null,
   status_reprodutivo: 'Prenha',
+  funcao_reprodutiva: null,
   status_saude: null,
   premiacao: null,
   foto_url: null,

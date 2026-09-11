@@ -47,6 +47,7 @@ export default function Reproducao() {
     data_evento: hojeISO(),
     garanhao: '',
     metodo: '',
+    receptora_id: '',
     data_prevista_parto: '',
     resultado: '',
     observacoes: '',
@@ -85,6 +86,7 @@ export default function Reproducao() {
       data_evento: hojeISO(),
       garanhao: '',
       metodo: '',
+      receptora_id: '',
       data_prevista_parto: '',
       resultado: '',
       observacoes: '',
@@ -107,6 +109,7 @@ export default function Reproducao() {
         data_evento: form.data_evento,
         garanhao: form.garanhao || null,
         metodo: form.metodo || null,
+        receptora_id: form.receptora_id || null,
         data_prevista_parto: form.data_prevista_parto || null,
         resultado: form.resultado || null,
         observacoes: form.observacoes || null,
@@ -345,6 +348,28 @@ export default function Reproducao() {
                 />
               </Campo>
             </div>
+
+            {/*
+              A receptora só aparece na transferência de embrião.
+
+              Mostrar sempre convidaria a preenchê-la numa monta natural, onde
+              não existe receptora — e o campo mais perigoso desta tela é
+              justamente o que pode trocar a mãe do potro.
+            */}
+            {form.metodo === 'Transferência de Embrião' && (
+              <Campo
+                label="Receptora — quem gesta e pare"
+                erro={erros.receptora_id}
+                hint="A MATRIZ acima é a mãe genética (doadora) e é ela que vai para a árvore do potro. A receptora só carrega a gestação."
+              >
+                <SelectAnimal
+                  value={form.receptora_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, receptora_id: v }))}
+                  animais={plantel.filter((a) => a.sexo === 'Fêmea' && a.id !== form.animal_id)}
+                  placeholder="Escolha a receptora"
+                />
+              </Campo>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo
