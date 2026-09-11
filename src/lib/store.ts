@@ -143,6 +143,17 @@ export type NovaReceita = {
 /** Entrou, saiu, sobrou — no mesmo período. */
 export type ResumoFinanceiro = { receitas: number; despesas: number; saldo: number }
 
+/** Uma linha da lixeira: o que foi excluido e de onde veio. */
+export type ItemDaLixeira = {
+  tabela: TabelaReversivel
+  id: string
+  descricao: string
+  /** Data do proprio registro (a vacina foi aplicada em...). */
+  quando: string
+  /** Quando foi para a lixeira. */
+  excluido_em: string
+}
+
 /**
  * O PostgREST devolve o vínculo "muitos para um" como objeto, mas o cliente
  * tipa a coluna embutida de forma ampla porque este projeto não usa tipos
@@ -848,6 +859,21 @@ export const store = {
       despesas: Number(linha?.despesas ?? 0),
       saldo: Number(linha?.saldo ?? 0),
     }
+  },
+
+  // ------------------------------------------------------------- lixeira
+
+  /** O que foi excluído e ainda dá para trazer de volta. */
+  async getLixeira(): Promise<ItemDaLixeira[]> {
+    const { data, error } = await supabase.rpc('lixeira')
+    if (error) throw error
+    return ((data ?? []) as Record<string, unknown>[]).map((l) => ({
+      tabela: String(l.tabela) as TabelaReversivel,
+      id: String(l.id),
+      descricao: String(l.descricao ?? ''),
+      quando: String(l.quando ?? ''),
+      excluido_em: String(l.excluido_em ?? ''),
+    }))
   },
 
   // -------------------------------------------------- exclusão reversível

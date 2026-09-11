@@ -16,6 +16,7 @@ import { iniciais } from '@/components/AnimalCard'
 import { PRODUTO } from '@/lib/produto'
 import { SecaoEquipe } from '@/components/configuracoes/SecaoEquipe'
 import { SecaoConexaoWhatsapp } from '@/components/configuracoes/SecaoConexaoWhatsapp'
+import { SecaoLixeira } from '@/components/configuracoes/SecaoLixeira'
 
 /** Identidade da conta: o que aparece no sistema e na vitrine pública. */
 function SecaoIdentidade() {
@@ -289,6 +290,8 @@ export default function Configuracoes() {
             </div>
           </div>
         </Card>
+
+        <SecaoLixeira />
 
         <Card className="p-5">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">

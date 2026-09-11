@@ -882,7 +882,7 @@ async function gravar(acao: string, user: string, d: Dados): Promise<Gravacao> {
       mensagem: [
         '🗑️ Apagado.',
         '',
-        '_Não sumiu de vez: dá para restaurar no sistema, em Configurações._',
+        '_Não sumiu de vez: dá para trazer de volta no sistema, em Configurações → Lixeira._',
       ].join(NL),
     }
   }
