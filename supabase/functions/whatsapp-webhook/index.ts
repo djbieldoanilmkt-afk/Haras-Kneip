@@ -1600,6 +1600,18 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  /*
+    "Gastei 350 de alimentação na Copa" já diz tudo.
+
+    A descrição é obrigatória porque uma despesa sem texto vira uma linha
+    ilegível no extrato. Mas quando a pessoa deu categoria e valor, a
+    categoria JÁ é a descrição — cobrar de novo é pedir que ela repita o que
+    acabou de falar, e é onde a conversa trava no meio do curral.
+  */
+  if (leitura.acao === 'lancar_despesa' && !dadosAtuais.descricao && dadosAtuais.categoria) {
+    dadosAtuais.descricao = String(dadosAtuais.categoria)
+  }
+
   const faltam = faltando(leitura.acao, dadosAtuais)
 
   await supabase.from('intencoes').upsert(
