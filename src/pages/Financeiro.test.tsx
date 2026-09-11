@@ -70,6 +70,8 @@ vi.mock('@/lib/store', () => ({
       ],
     }),
     createDespesa: criarDespesa,
+    getEventosParaDespesa: vi.fn().mockResolvedValue([]),
+    getCustoPorEvento: vi.fn().mockResolvedValue([]),
     deleteDespesa: vi.fn().mockResolvedValue(undefined),
     getReceitas: vi.fn().mockResolvedValue([
       {

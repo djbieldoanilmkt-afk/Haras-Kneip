@@ -6,6 +6,7 @@ import {
   PELAGENS,
   TIPOS_MARCHA,
   TIPOS_EVENTO,
+  TIPOS_EVENTO_COM_CUSTO,
   TIPOS_SAUDE,
   TIPOS_REPRODUCAO,
   METODOS_REPRODUCAO,
@@ -73,9 +74,15 @@ describe('listas do dominio', () => {
     expect(TIPOS_MARCHA).toEqual(['Marcha Batida', 'Marcha Picada'])
   })
 
-  it('TIPOS_EVENTO contem os sete tipos do calendario legado', () => {
-    expect(TIPOS_EVENTO).toHaveLength(7)
+  it('TIPOS_EVENTO cobre agenda e evento com custo', () => {
+    // Contagem fixa quebrava a cada tipo novo sem dizer o que importa. O que
+    // importa e que a lista espelhe `eventos_tipo_check` (migracao 035).
     expect(TIPOS_EVENTO).toContain('Parto Previsto')
+    // Competicao e exposicao entraram para virar centro de custo: e nelas que
+    // carreto, alimentacao e inscricao sao somados.
+    expect(TIPOS_EVENTO).toContain('Competição')
+    expect(TIPOS_EVENTO).toContain('Exposição')
+    expect(TIPOS_EVENTO_COM_CUSTO.every((t) => TIPOS_EVENTO.includes(t))).toBe(true)
   })
 })
 

@@ -59,8 +59,13 @@ export const TIPOS_EVENTO = [
   'Ferração',
   'Veterinário',
   'Cobertura',
+  'Competição',
+  'Exposição',
   'Outro',
 ] as const
+
+/** Eventos que costumam ter custo proprio: prova, copa, exposicao. */
+export const TIPOS_EVENTO_COM_CUSTO = ['Competição', 'Exposição'] as const
 
 /*
   Estas listas espelham os check constraints do banco (012_vocabulario.sql).
@@ -122,6 +127,8 @@ const EVENTO_CLASSES: Record<string, string> = {
   'Parto Previsto': 'bg-status-prenha',
   Ferração: 'bg-status-potro',
   Veterinário: 'bg-destructive',
+  Competição: 'bg-status-prenha',
+  Exposição: 'bg-status-lactante',
   Cobertura: 'bg-primary',
   Outro: 'bg-muted-foreground',
 }

@@ -105,6 +105,8 @@ export type NovaDespesa = {
   valor: number
   fornecedor?: string | null
   observacoes?: string | null
+  /** Agrupa a despesa num evento (Copa de Marco), para somar o custo dele. */
+  evento_id?: string | null
 }
 
 export type ResumoCustos = {
@@ -142,6 +144,17 @@ export type NovaReceita = {
 
 /** Entrou, saiu, sobrou — no mesmo período. */
 export type ResumoFinanceiro = { receitas: number; despesas: number; saldo: number }
+
+/** Quanto custou um evento, e em que. */
+export type CustoEvento = {
+  eventoId: string
+  titulo: string
+  tipo: string
+  data: string
+  animais: number
+  total: number
+  porCategoria: { categoria: string; total: number }[]
+}
 
 /** Quanto custa manter cada categoria do plantel. */
 export type CustoCategoria = {
@@ -815,6 +828,7 @@ export const store = {
       p_fornecedor: dados.fornecedor ?? null,
       p_observacoes: dados.observacoes ?? null,
       p_rateios: rateios,
+      p_evento: dados.evento_id ?? null,
     })
     if (error) throw new Error(error.message)
     return String(data)
@@ -915,6 +929,42 @@ export const store = {
       animais: Number(l.animais ?? 0),
       custoTotal: Number(l.custo_total ?? 0),
       custoMedio: Number(l.custo_medio ?? 0),
+    }))
+  },
+
+  /** Eventos que tiveram despesa, do mais caro para o mais barato. */
+  async getCustoPorEvento(): Promise<CustoEvento[]> {
+    const { data, error } = await supabase.rpc('custo_por_evento', {
+      p_desde: null,
+      p_ate: null,
+    })
+    if (error) throw error
+    return ((data ?? []) as Record<string, unknown>[]).map((l) => ({
+      eventoId: String(l.evento_id),
+      titulo: String(l.titulo ?? ''),
+      tipo: String(l.tipo ?? ''),
+      data: String(l.data_evento ?? ''),
+      animais: Number(l.animais ?? 0),
+      total: Number(l.total ?? 0),
+      porCategoria: ((l.por_categoria ?? []) as Record<string, unknown>[]).map((c) => ({
+        categoria: String(c.categoria ?? ''),
+        total: Number(c.total ?? 0),
+      })),
+    }))
+  },
+
+  /** Eventos do haras, para ligar uma despesa a um deles. */
+  async getEventosParaDespesa(): Promise<{ id: string; nome: string }[]> {
+    const { data, error } = await supabase
+      .from('eventos')
+      .select('id, titulo, tipo, data_evento')
+      .order('data_evento', { ascending: false })
+      .limit(50)
+    if (error) throw error
+    return ((data ?? []) as Record<string, unknown>[]).map((e) => ({
+      id: String(e.id),
+      // O titulo sozinho repete entre anos ("Copa de Marco" de 25 e de 26).
+      nome: `${e.titulo} · ${String(e.data_evento ?? '').slice(0, 10).split('-').reverse().join('/')}`,
     }))
   },
 

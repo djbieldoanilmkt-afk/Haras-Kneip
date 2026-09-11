@@ -6,7 +6,7 @@ import { toastDesfazer } from '@/components/ui/sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
-import { Campo, SelectAnimal, SelectSimples } from '@/components/form/Campo'
+import { Campo, SelectAnimal, SelectPorId, SelectSimples } from '@/components/form/Campo'
 import { CustoChart } from '@/components/charts/CustoChart'
 import { SeletorRateio } from '@/components/financeiro/SeletorRateio'
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,7 @@ const FORM_VAZIO = {
   valor: '',
   fornecedor: '',
   observacoes: '',
+  evento_id: '',
 }
 
 const FORM_RECEITA_VAZIO = {
@@ -81,6 +82,7 @@ export default function Financeiro() {
     () => store.getResumoFinanceiro(),
     [],
   )
+  const { data: eventos } = useAsync(() => store.getEventosParaDespesa(), [])
 
   const lista = despesas ?? []
   const listaReceitas = receitas ?? []
@@ -170,6 +172,7 @@ export default function Financeiro() {
           valor: valorNumerico,
           fornecedor: form.fornecedor.trim() || null,
           observacoes: form.observacoes.trim() || null,
+          evento_id: form.evento_id || null,
         },
         rateio,
       )
@@ -572,6 +575,26 @@ export default function Financeiro() {
                 valorTotal={valorNumerico}
               />
             </Campo>
+
+            {/*
+              Ligar a despesa a um evento é o que responde "quanto custou a
+              Copa de Março" — carreto, alimentação e inscrição somados. Só
+              aparece se houver evento cadastrado: um seletor vazio só ocupa
+              espaço e sugere que falta preencher algo.
+            */}
+            {(eventos?.length ?? 0) > 0 && (
+              <Campo
+                label="Evento (opcional)"
+                hint="Agrupa a despesa numa prova ou exposição, para somar o custo dela."
+              >
+                <SelectPorId
+                  value={form.evento_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, evento_id: v }))}
+                  animais={eventos ?? []}
+                  placeholder="Nenhum"
+                />
+              </Campo>
+            )}
 
             <Campo label="Observações" htmlFor="observacoes">
               <Textarea

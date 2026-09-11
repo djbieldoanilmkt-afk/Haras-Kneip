@@ -84,11 +84,21 @@ export function SelectSimples({
  * porque o afixo é o mesmo e o pré-nome se repete entre safras. Nas telas
  * novas o valor do select já é o id.
  */
-export function SelectAnimal({
+/**
+ * Seletor cujo VALOR e um id e cujo rotulo e um nome.
+ *
+ * A funcao filha no `SelectValue` e obrigatoria: sem ela o Base UI imprime o
+ * proprio valor no gatilho, e como o valor e o id aparecia um UUID na tela.
+ *
+ * `SelectAnimal` e o mesmo componente com outro nome, mantido porque a maior
+ * parte das telas seleciona animal -- mas evento usa o mesmo mecanismo, e
+ * chamar de "SelectAnimal" ali seria mentira no codigo.
+ */
+export function SelectPorId({
   value,
   onValueChange,
   animais,
-  placeholder = 'Selecione o animal...',
+  placeholder = 'Selecione...',
   id,
 }: {
   value: string
@@ -125,3 +135,6 @@ export function SelectAnimal({
     </Select>
   )
 }
+
+/** Mesmo seletor, com o nome que a maior parte das telas usa. */
+export const SelectAnimal = SelectPorId
