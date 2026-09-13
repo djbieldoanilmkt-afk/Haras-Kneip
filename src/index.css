@@ -1,0 +1,489 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/bricolage-grotesque/wght.css";
+@import "@fontsource-variable/manrope/wght.css";
+@import "@fontsource/playfair-display/latin-600.css";
+@import "@fontsource/playfair-display/latin-700.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #fbfbfc;
+  --foreground: #14161a;
+  --card: #ffffff;
+  --card-foreground: #14161a;
+  --popover: #ffffff;
+  --popover-foreground: #14161a;
+  --primary: #1e5b3a;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f2f5;
+  --secondary-foreground: #14161a;
+  --muted: #f1f2f5;
+  --muted-foreground: #868c96;
+  --accent: #e9f1ec;
+  --accent-foreground: #1e5b3a;
+  --destructive: #c0332f;
+  --destructive-foreground: #ffffff;
+  --border: #e7e8ec;
+  --input: #e7e8ec;
+  --ring: #1e5b3a;
+
+  --status-vazia: #6b7280;
+  --status-prenha: #b45309;
+  --status-lactante: #0f766e;
+  --status-cobertura: #1d4ed8;
+  --status-potro: #c2410c;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #0f1115;
+  --foreground: #e8eaed;
+  --card: #16181d;
+  --card-foreground: #e8eaed;
+  --popover: #16181d;
+  --popover-foreground: #e8eaed;
+  --primary: #4fa97a;
+  --primary-foreground: #0f1115;
+  --secondary: #1e222a;
+  --secondary-foreground: #e8eaed;
+  --muted: #1e222a;
+  --muted-foreground: #8b919b;
+  --accent: #1b2a22;
+  --accent-foreground: #4fa97a;
+  --destructive: #e5645f;
+  --destructive-foreground: #0f1115;
+  --border: #24272e;
+  --input: #24272e;
+  --ring: #4fa97a;
+
+  --status-vazia: #9ca3af;
+  --status-prenha: #fbbf24;
+  --status-lactante: #2dd4bf;
+  --status-cobertura: #60a5fa;
+  --status-potro: #fb923c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-status-vazia: var(--status-vazia);
+  --color-status-prenha: var(--status-prenha);
+  --color-status-lactante: var(--status-lactante);
+  --color-status-cobertura: var(--status-cobertura);
+  --color-status-potro: var(--status-potro);
+
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Playfair Display", ui-serif, Georgia, serif;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+
+  /* Desacelera rapido e lembra fisica real. Curva unica de todo o sistema. */
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    /* Manrope variavel em 450: corpo visivelmente mais cheio que o peso 400,
+       sem chegar ao medium dos rotulos. font-weight direto, e nao
+       font-variation-settings — este ultimo herda e atropelaria o peso dos
+       titulos. */
+    font-weight: 450;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-foreground font-heading font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  @keyframes entrar {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes tracar {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes tracar-vertical {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  /* Entrada padrao. O atraso do escalonamento vem por style inline. */
+  .animar-entrada {
+    animation: entrar 250ms var(--ease-saida) both;
+  }
+
+  /* Revelacao ao rolar: comeca escondido e recebe .revelado pelo observer. */
+  .revelar {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 400ms var(--ease-saida),
+      transform 400ms var(--ease-saida);
+  }
+
+  .revelar.revelado {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Sem isto cada digito tem largura propria e o numero treme ao subir. */
+  .numero-animado {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /*
+    Arvore genealogica. A forma e fixa — 1 animal, 2 pais, 4 avos — entao os
+    conectores sao bordas posicionadas por calc() sobre linhas de altura fixa,
+    sem medir o DOM: redimensionar a janela, mudar o zoom ou carregar a fonte
+    depois nao desalinha nada.
+
+    Geometria: todo no tem altura --linha e se centraliza no seu row-span. O
+    centro do par de filhos fica a vao/2 alem das bordas do no pai (caso
+    pai/mae -> avos) ou a linha/2 + vao (caso animal -> pais, que abrange
+    quatro linhas). As chaves verticais usam exatamente esses alcances.
+  */
+  .pedigree {
+    --linha: 3.5rem;
+    --vao: 0.5rem;
+    --ramo: 1.5rem;
+
+    display: grid;
+    grid-template-columns: repeat(3, minmax(9.5rem, 11rem));
+    grid-auto-rows: var(--linha);
+    column-gap: var(--ramo);
+    row-gap: var(--vao);
+    /* Respiro para as chaves que se estendem alem da primeira/ultima linha. */
+    padding-block: calc(var(--vao) * 2);
+  }
+
+  .pedigree-no {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: var(--linha);
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  /* Ramo horizontal entrando pela esquerda (pais e avos). */
+  .pedigree-no[data-ramo]::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--ramo) * -1);
+    top: 50%;
+    width: var(--ramo);
+    height: 1px;
+    background: var(--border);
+    transform: scaleX(0);
+    transform-origin: right;
+    animation: tracar 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /*
+    Ramo saindo pela direita, em elemento real: os dois pseudo-elementos do no
+    ja estao ocupados pelo ramo esquerdo e pela chave.
+  */
+  .pedigree-stub {
+    position: absolute;
+    right: calc(var(--ramo) * -1);
+    top: 50%;
+    width: var(--ramo);
+    height: 1px;
+    background: var(--border);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: tracar 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /* Chave vertical no meio do vao, ligando pai/mae aos dois avos. */
+  .pedigree-chave::after {
+    content: '';
+    position: absolute;
+    right: calc(var(--ramo) / -2);
+    top: calc(var(--vao) / -2);
+    bottom: calc(var(--vao) / -2);
+    width: 1px;
+    background: var(--border);
+    transform: scaleY(0);
+    transform-origin: center;
+    animation: tracar-vertical 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /* Chave do animal, que abrange as quatro linhas ate os centros de pai e mae. */
+  .pedigree-chave-animal::after {
+    content: '';
+    position: absolute;
+    right: calc(var(--ramo) / -2);
+    top: calc((var(--linha) / 2 + var(--vao)) * -1);
+    bottom: calc((var(--linha) / 2 + var(--vao)) * -1);
+    width: 1px;
+    background: var(--border);
+    transform: scaleY(0);
+    transform-origin: center;
+    animation: tracar-vertical 600ms var(--ease-saida) forwards;
+    animation-delay: inherit;
+  }
+
+  /* --- fim das regras em camada; as de notificacao ficam fora, ver abaixo --- */
+}
+
+/*
+  Notificacoes (sonner).
+
+  O padrao da biblioteca e um retangulo cinza que nao se parece com nada do
+  resto do sistema. Aqui a caixa recebe a mesma linguagem dos cards — raio
+  grande, borda de 1px, sombra em duas camadas — o icone vira um distintivo
+  redondo tingido pelo tipo da mensagem, e uma barra fina mostra quanto falta
+  para sumir.
+
+  Ganhar do CSS do sonner exigiu duas coisas, e uma so nao resolvia:
+
+  1. Ficar FORA de @layer components. O sonner injeta o CSS dele em tempo de
+     execucao num <style> sem camada, e na cascata estilo sem camada vence
+     estilo em camada por mais especifico que este seja. Dentro da camada so
+     pegavam as propriedades que o sonner nao declara (backdrop-filter,
+     overflow); raio, padding, fundo e sombra continuavam os dele.
+
+  2. Repetir a classe no seletor. Fora da camada a disputa volta a ser por
+     especificidade — e a regra do sonner e [data-sonner-toast]
+     [data-styled="true"], ou seja 0-2-0, exatamente o mesmo peso de
+     .cn-toast[data-sonner-toast]. Empate resolve por ordem de insercao, e a
+     folha dele entra depois da nossa. `.cn-toast.cn-toast` leva a 0-3-0 e
+     tira o resultado das maos da ordem. Preferido a [data-styled="true"]
+     porque nao depende de um atributo interno da biblioteca.
+
+  O que NAO se mexe aqui: `transform` do elemento. O sonner empilha, desloca
+  e arrasta os toasts por transform inline — sobrescrever quebraria o
+  empilhamento. Todo o movimento proprio vive nos filhos.
+*/
+/*
+  Centralizacao do container.
+
+  O sonner centraliza com `left: 50%` + `transform: translateX(-50%)`. Aqui
+  isso nao e confiavel: qualquer coisa que zere o transform do elemento
+  (outra folha, uma animacao) devolve a caixa deslocada meia largura para a
+  direita, e o defeito e silencioso. `margin-inline: auto` entre `left: 0` e
+  `right: 0` chega ao mesmo lugar usando so o algoritmo de posicionamento,
+  sem transform nenhum para alguem atropelar.
+
+  A largura em min() e o que a regra mobile do sonner fazia por nos; como
+  este seletor tem peso maior (0-3-0, pela classe .toaster que o componente
+  ja poe no elemento) ele vence a regra dele tambem dentro do @media, entao
+  precisa resolver o caso estreito sozinho.
+*/
+.toaster[data-sonner-toaster][data-x-position='center'] {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  transform: none;
+  width: min(var(--width), calc(100vw - 2rem));
+}
+
+.cn-toast.cn-toast[data-sonner-toast] {
+  --cor: var(--primary);
+  --tinta: var(--accent);
+
+  position: relative;
+  overflow: hidden;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--popover) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 7%, transparent),
+    0 8px 24px -6px color-mix(in srgb, var(--foreground) 14%, transparent),
+    0 24px 48px -16px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='error'] {
+  --cor: var(--destructive);
+  --tinta: color-mix(in srgb, var(--destructive) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='warning'] {
+  --cor: var(--status-prenha);
+  --tinta: color-mix(in srgb, var(--status-prenha) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast][data-type='info'] {
+  --cor: var(--status-cobertura);
+  --tinta: color-mix(in srgb, var(--status-cobertura) 14%, var(--popover));
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-icon] {
+  flex: none;
+  /*
+    `justify-content` e obrigatorio: o sonner declara flex-start neste
+    elemento, e sem sobrescrever isso o icone encosta na borda esquerda do
+    circulo — era o defeito visivel de "traco fora da bolinha".
+  */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--tinta);
+  color: var(--cor);
+  animation: selo-toast 400ms var(--ease-saida) both;
+}
+
+/*
+  Zerar a margem do selo nao bastava, porque o sonner poe `margin-left: -1px`
+  no proprio <svg>. Com isso a caixa de margem do icone mede 17px em vez de
+  18, e centralizar 17 num quadrado de 32 joga a borda esquerda para 6,5px
+  contra 7,5px do outro lado. O desvio e de 1px e passa despercebido numa
+  leitura rapida, mas num circulo pequeno o olho pega.
+*/
+.cn-toast.cn-toast[data-sonner-toast] [data-icon] > svg {
+  margin: 0;
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-title] {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--popover-foreground);
+}
+
+.cn-toast.cn-toast[data-sonner-toast] [data-description] {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+/*
+  Tempo restante. Anda em sincronia com o fechamento porque as duas
+  duracoes saem da mesma constante em sonner.tsx.
+*/
+.cn-toast.cn-toast[data-sonner-toast]::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--cor) 60%, transparent);
+  transform-origin: left;
+  animation: esvaziar-toast var(--duracao-toast, 4000ms) linear forwards;
+}
+
+/* O sonner congela o relogio quando o ponteiro entra; a barra acompanha. */
+[data-sonner-toaster]:hover .cn-toast.cn-toast[data-sonner-toast]::after {
+  animation-play-state: paused;
+}
+
+/* Toast de carregamento nao tem prazo — barra correndo seria mentira. */
+.cn-toast.cn-toast[data-sonner-toast][data-type='loading']::after {
+  display: none;
+}
+
+@keyframes selo-toast {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes esvaziar-toast {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+  Principio 1 da spec: quem pediu menos movimento no sistema operacional
+  recebe a versao estatica. Esta regra cobre animacao e transicao
+  declarativas; o que e dirigido por JavaScript usa o hook useReducedMotion.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    /* Sem zerar o atraso, o escalonamento viraria conteudo pipocando em
+       sequencia — atrasado e instantaneo ao mesmo tempo. */
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  .revelar {
+    opacity: 1;
+    transform: none;
+  }
+}

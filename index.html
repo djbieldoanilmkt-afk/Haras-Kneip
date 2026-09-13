@@ -1,85 +1,61 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Haras Kneip - Sistema de gestão de plantel Mangalarga Marchador. Controle de genealogia, reprodução, marcha e relatórios.">
-  <meta name="theme-color" content="#f5f2ed">
-  <title>Haras Kneip | Mangalarga Marchador</title>
-  
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  
-  <!-- CSS -->
-  <link rel="stylesheet" href="css/variables.css">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/animations.css">
-  
-  <style>
-    /* Accessibility Classes */
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border-width: 0;
-    }
-    .focus\:not-sr-only:focus {
-      position: static;
-      width: auto;
-      height: auto;
-      padding: 8px 16px;
-      margin: 0;
-      overflow: visible;
-      clip: auto;
-      white-space: normal;
-      background: var(--accent-gold);
-      color: #000;
-      z-index: 10000;
-      display: block;
-      text-align: center;
-      font-weight: bold;
-    }
-  </style>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E5B3A" />
 
-  <!-- CDNs -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <a href="#main-content" class="sr-only focus:not-sr-only">Pular para conteudo</a>
-  
-  <!-- Splash Screen with Video Support -->
-  <div id="splash-screen" style="position: fixed; inset: 0; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; overflow: hidden;">
-    
-    <!-- Background Video (Coloque o seu arquivo de vídeo em assets/splash-bg.mp4) -->
-    <video autoplay muted loop playsinline id="splash-video" style="position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0.25; filter: contrast(1.05); pointer-events: none;">
-      <source src="assets/splash-bg.mp4" type="video/mp4">
-    </video>
+    <title>HarasPro | Gestão de haras sem planilha</title>
+    <meta
+      name="description"
+      content="Plantel, genealogia, sanidade, reprodução e uma vitrine pública para vender seus animais. Teste grátis por 15 dias."
+    />
 
-    <!-- Overlay Content -->
-    <div style="position: relative; z-index: 2; text-align: center;">
-      <div class="splash-emoji" style="font-size: 4rem; margin-bottom: 0.5rem;">🐴</div>
-      <h1 class="splash-title" style="font-family: 'Playfair Display', serif; color: var(--accent-gold); font-size: 2.2rem; letter-spacing: 2px;">HARAS KNEIP</h1>
-      <p class="splash-subtitle" style="color: var(--text-secondary); font-size: 1rem; margin-top: 0.4rem; font-weight: 500;">Mangalarga Marchador</p>
-    </div>
-  </div>
+    <!--
+      Cartão de pré-visualização (WhatsApp, Instagram, Facebook, LinkedIn).
+      Sem isto o link compartilhado aparece como texto cru — e o WhatsApp é o
+      principal canal de distribuição deste produto.
 
-  <!-- App Shell -->
-  <div id="app" class="app-container"></div>
-  
-  <!-- Toast Container -->
-  <div id="toast-container" aria-live="polite" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;"></div>
+      VITE_SITE_URL precisa ser o endereço absoluto do site, SEM barra no
+      final (ex.: https://haraspro.vercel.app). Os robôs de rede social
+      exigem URL absoluta e ignoram caminho relativo — sem essa variável o
+      cartão aparece sem imagem.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HarasPro" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="HarasPro | Gestão de haras sem planilha" />
+    <meta
+      property="og:description"
+      content="Plantel, genealogia, sanidade, reprodução e uma vitrine pública para vender seus animais. Teste grátis por 15 dias."
+    />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/marca/og-haraspro.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="HarasPro — gestão de haras sem planilha" />
 
-  <!-- Main App Script -->
-  <script type="module" src="js/app.js"></script>
-</body>
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="HarasPro | Gestão de haras sem planilha" />
+    <meta
+      name="twitter:description"
+      content="Plantel, genealogia, sanidade, reprodução e uma vitrine pública. Teste grátis por 15 dias."
+    />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/marca/og-haraspro.jpg" />
+
+    <!-- Instalável no celular e abre sem sinal. Ver public/sw.js. -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HarasPro" />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="./marca/icone-32.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./marca/icone-512.png" />
+    <link rel="apple-touch-icon" href="./marca/icone-180.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
