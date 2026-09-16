@@ -15,3 +15,16 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Arquivos onde credenciais sao coladas a mao.
+#
+# Um arquivo vazio chamado tokens-railway.txt foi criado na raiz e entrou num
+# commit por `git add -A`. Estava vazio -- mas o proposito dele era receber um
+# token, e o repositorio e publico. Bloqueio o padrao inteiro para que a
+# proxima vez nao dependa de alguem lembrar.
+*token*.txt
+*tokens*
+*.secret
+*.key
+segredo*.txt
+credenciais*
