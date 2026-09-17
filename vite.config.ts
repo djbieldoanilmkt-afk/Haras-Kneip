@@ -14,5 +14,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    /*
+      O trabalhador de vídeo roda em Node puro, com `node --test`, e o Vitest
+      não consegue empacotar `node:test`. Ele tem o próprio comando:
+      `npm test` dentro de `worker/`.
+    */
+    exclude: ['**/node_modules/**', '**/dist/**', 'worker/**'],
   },
 })

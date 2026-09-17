@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { lerSexoEIdade, medirImagem, semAcento, validarMidia } from '../_compartilhado/midia.ts'
 
 /**
  * Assistente do haras no WhatsApp.
@@ -21,7 +22,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
  * um cardápio fixo. Quem grava são as funções `agente_*` do banco, que conferem
  * papel e haras como o RLS conferiria.
  *
- * Tudo num arquivo só porque a API de deploy que uso aceita um único corpo.
+ * Quase tudo num arquivo só. A exceção é `_compartilhado/midia.ts`: aquilo é
+ * lógica pura — ler dimensão de imagem, decidir se a foto serve, entender
+ * "macho, 4 anos" — e mora fora para poder ser testada sem subir nada.
  */
 
 const EVOLUTION_URL = Deno.env.get('EVOLUTION_URL')!
@@ -481,6 +484,7 @@ function instrucoes(
   plantel: Cavalo[],
   veFinanceiro: boolean,
   eventos: EventoDoHaras[],
+  temMorfologia: boolean,
 ): string {
   return [
     'Você é o assistente de um haras de Mangalarga Marchador, no Brasil.',
@@ -537,6 +541,24 @@ function instrucoes(
     '- consultar_resumo: "como está o haras?", "me dá um resumo", "o que andou',
     '    acontecendo?", "novidades?", "como foi a semana?" — panorama do que JÁ',
     '    foi feito, o que precisa de atenção e o caixa do mês.',
+    /*
+      Modulo exclusivo: fora do cardapio de quem nao tem.
+
+      Nao basta o banco recusar o uso. Se a acao estiver no prompt de todo
+      mundo, o agente dos outros haras vai OFERECER a avaliacao e depois
+      explicar que nao da — e um recurso exclusivo que todo mundo conhece
+      deixou de ser exclusivo.
+    */
+    temMorfologia
+      ? [
+          '- avaliar_morfologia: animal_id (se ela citou um do plantel) — a pessoa quer',
+          '    AVALIAR a morfologia/conformação de um cavalo, dar nota, julgar o animal.',
+          '    "avalia a morfologia do Trovão", "quero uma avaliação desse cavalo",',
+          '    "dá uma nota nesse potro", "quanto vale morfologicamente".',
+          '    NÃO é consultar_ficha: ficha é o que já está cadastrado; avaliação é',
+          '    um julgamento novo, feito a partir de fotos e vídeos que ela vai mandar.',
+        ].join('\n')
+      : '',
     '- consultar_ficha: animal_id — resumo completo de UM animal',
     '- consultar_vitrine: link público do plantel, para mandar a compradores',
     '- mostrar_foto: animal_id — a pessoa quer VER a foto do animal',
@@ -577,6 +599,20 @@ function instrucoes(
     plantel
       .map((a) => `${a.id} = ${a.nome} · ${a.sexo}${a.status ? ` · ${a.status}` : ''}`)
       .join('\n') || '(nenhum ainda)',
+    /*
+      A lista que a regra de despesa manda usar.
+
+      Ela estava faltando: a instrução dizia "use o nome da lista de eventos
+      abaixo" e a lista nunca entrava no prompt. O modelo ainda acertava às
+      vezes, ecoando o nome que a pessoa falou, mas escrito do jeito dela —
+      "copa de março" contra "Copa Mangalarga de Março". Sem os nomes
+      canônicos à vista, agrupar gasto por evento dependia da sorte de o
+      casamento aproximado no banco cobrir a diferença.
+    */
+    ...(veFinanceiro && eventos.length > 0
+      ? ['', 'Eventos deste haras (use o nome EXATO ao preencher `evento`):',
+         eventos.map((e) => `${e.titulo} — ${e.quando}`).join('\n')]
+      : []),
   ].join('\n')
 }
 
@@ -588,9 +624,10 @@ async function entender(
   veFinanceiro: boolean,
   pendente: { acao: string; dados: Dados } | null,
   eventos: EventoDoHaras[],
+  temMorfologia: boolean,
 ): Promise<Leitura> {
   const mensagens: Dados[] = [
-    { role: 'system', content: instrucoes(plantel, veFinanceiro, eventos) },
+    { role: 'system', content: instrucoes(plantel, veFinanceiro, eventos, temMorfologia) },
   ]
 
   if (pendente) {
@@ -1155,6 +1192,230 @@ async function anexarFoto(
   return `📸 Foto anexada à ficha de *${nome}*.`
 }
 
+// ======================================================= morfologia (Kneip)
+//
+// O roteiro da avaliação NÃO passa pelo modelo de linguagem.
+//
+// Enquanto uma avaliação está aberta, o agente sabe exatamente o que está
+// esperando — a foto do lado esquerdo, ou a resposta sobre o sexo do animal.
+// Mandar isso para o cérebro geral trocaria uma máquina de estados exata por
+// um palpite, e o palpite erraria justo quando a pessoa está no campo com o
+// cavalo parado esperando.
+
+/**
+ * Extensão e tipo do arquivo que vai para o balde.
+ *
+ * O balde só aceita uma lista de tipos. Quando a Evolution entrega
+ * `application/octet-stream`, mandar isso adiante faria o storage recusar um
+ * arquivo perfeitamente bom — então o tipo é decidido aqui, pelo papel.
+ */
+function tipoDoArquivo(mime: string, papel: string): { ext: string; mime: string } {
+  if (papel.startsWith('VIDEO')) {
+    if (mime.includes('quicktime')) return { ext: 'mov', mime: 'video/quicktime' }
+    if (mime.includes('webm')) return { ext: 'webm', mime: 'video/webm' }
+    if (mime.includes('3gpp')) return { ext: '3gp', mime: 'video/3gpp' }
+    return { ext: 'mp4', mime: 'video/mp4' }
+  }
+  if (mime.includes('png')) return { ext: 'png', mime: 'image/png' }
+  if (mime.includes('webp')) return { ext: 'webp', mime: 'image/webp' }
+  if (mime.includes('heic') || mime.includes('heif')) return { ext: 'heic', mime: 'image/heic' }
+  return { ext: 'jpg', mime: 'image/jpeg' }
+}
+
+/** Foto ou vídeo que chegou durante uma avaliação em andamento. */
+async function morfologiaMidia(
+  instancia: string,
+  chave: Dados,
+  numero: string,
+  harasId: string,
+  situacao: Dados,
+): Promise<string> {
+  const papel = String(situacao.papel ?? '')
+  const instrucao = String(situacao.instrucao ?? '')
+
+  // Estado de conversa (escolher animal, coletar dados): não é hora de foto.
+  if (!papel) return `Antes da foto eu preciso de uma coisa:\n\n${instrucao}`
+
+  const midia = await baixarMidia(instancia, chave)
+  if (!midia) return 'Não consegui baixar esse arquivo. Pode mandar de novo?'
+
+  const bin = Uint8Array.from(atob(midia.base64), (c) => c.charCodeAt(0))
+  const dimensao = medirImagem(bin)
+  const veredito = validarMidia({ papel, mime: midia.mime, bytes: bin.length, dimensao })
+
+  /*
+    Recusado não sobe.
+
+    Conferir antes de enviar é o que evita empurrar 120 MB para o balde só
+    para ele devolver erro — e é o que deixa o dono saber o motivo em vez de
+    receber "não consegui guardar".
+  */
+  if (veredito.validacao === 'RECUSADA') return `${veredito.recado}\n\n${instrucao}`
+
+  const tipo = tipoDoArquivo(midia.mime, papel)
+  const caminho = `${harasId}/${situacao.avaliacao_id}/${papel}-${Date.now()}.${tipo.ext}`
+
+  const r = await fetch(`${SUPABASE_URL}/storage/v1/object/morfologia/${caminho}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': tipo.mime,
+      'x-upsert': 'true',
+    },
+    body: bin,
+  })
+  if (!r.ok) return 'Não consegui guardar o arquivo. Tente de novo em instantes.'
+
+  const { data, error } = await supabase.rpc('morfologia_registrar_midia', {
+    p_telefone: numero,
+    p_papel: papel,
+    p_caminho: caminho,
+    p_mime: tipo.mime,
+    p_bytes: bin.length,
+    p_validacao: veredito.validacao,
+    p_codigos: veredito.codigos,
+    p_observacao: veredito.recado || null,
+    p_largura: dimensao?.largura ?? null,
+    p_altura: dimensao?.altura ?? null,
+  })
+  if (error) return `Não consegui registrar: ${error.message}`
+
+  const d = (data ?? {}) as Dados
+  const partes = [`✅ Guardei — ${d.rotulo}.`]
+  if (veredito.recado) partes.push(veredito.recado)
+  partes.push('', String(d.instrucao ?? ''))
+
+  /*
+    Fila cheia, trabalhador acordado.
+
+    Ele dorme quando não há vídeo para processar. Bater na porta aqui é o que
+    faz o laudo começar agora, em vez de na próxima passada do agendador.
+  */
+  if (d.completo) await supabase.rpc('morfologia_acordar_trabalhador')
+
+  return partes.join('\n')
+}
+
+const SIM = /^(sim|s|isso|esse|esse mesmo|e ele|e ela|eh|certo|exato|confirmo|pode|ok|blz|beleza)\b/
+const NAO = /^(nao|n|negativo|errado|outro|outra)\b/
+const SAIR = /^(cancelar|cancela|parar|para|sair|desisto|deixa pra la|chega)\b/
+
+
+/** Texto que chegou durante uma avaliação em andamento. */
+async function morfologiaTexto(
+  user: string,
+  numero: string,
+  texto: string,
+  situacao: Dados,
+): Promise<string> {
+  const estado = String(situacao.estado ?? '')
+  const instrucao = String(situacao.instrucao ?? '')
+  const t = texto.trim()
+  const plano = semAcento(t)
+
+  // A saída tem de funcionar em qualquer ponto do roteiro.
+  if (SAIR.test(plano)) {
+    await supabase.rpc('morfologia_cancelar', { p_telefone: numero })
+    return 'Parei a avaliação. O que você já mandou fica guardado — é só dizer quando quiser continuar.'
+  }
+
+  if (estado === 'ESCOLHER_ANIMAL') {
+    const { data } = await supabase.rpc('morfologia_buscar_animal', { p_user: user, p_nome: t })
+    const achados = (data ?? []) as Dados[]
+
+    if (achados.length > 1) {
+      return [
+        'Achei mais de um com esse nome. Qual deles?',
+        '',
+        ...achados.map((a) => `• ${a.nome}`),
+      ].join('\n')
+    }
+
+    if (achados.length === 1) {
+      const a = achados[0]
+      const { data: res, error } = await supabase.rpc('morfologia_definir_sujeito', {
+        p_telefone: numero,
+        p_animal_id: a.id,
+        // Nome que bate exato segue direto; palpite pergunta antes. Uma
+        // pergunta custa menos que meia hora de campo no cavalo errado.
+        p_confirmado: Boolean(a.exato),
+      })
+      if (error) return `Não consegui: ${error.message}`
+      return String((res as Dados).instrucao ?? '')
+    }
+
+    const { data: res, error } = await supabase.rpc('morfologia_definir_sujeito', {
+      p_telefone: numero,
+      p_nome: t,
+      p_confirmado: true,
+    })
+    if (error) return `Não consegui: ${error.message}`
+    return `Não achei *${t}* no plantel — então é um cavalo de fora.\n\n${(res as Dados).instrucao}`
+  }
+
+  if (estado === 'CONFIRMAR_ANIMAL') {
+    if (SIM.test(plano)) {
+      const { data: res, error } = await supabase.rpc('morfologia_confirmar_sujeito', {
+        p_telefone: numero,
+      })
+      if (error) return `Não consegui: ${error.message}`
+      return String((res as Dados).instrucao ?? '')
+    }
+    if (NAO.test(plano)) {
+      const { data: res } = await supabase.rpc('morfologia_descartar_sujeito', { p_telefone: numero })
+      return String((res as Dados).instrucao ?? '')
+    }
+    /* Nem sim nem não: quase sempre é o nome certo, dito direto. Volta para a
+       escolha e trata a mesma mensagem como a resposta dela. */
+    await supabase.rpc('morfologia_descartar_sujeito', { p_telefone: numero })
+    return await morfologiaTexto(user, numero, t, { ...situacao, estado: 'ESCOLHER_ANIMAL' })
+  }
+
+  if (estado === 'COLETAR_DADOS') {
+    const lido = lerSexoEIdade(t)
+    /*
+      Junta com o que já foi dito.
+
+      Quem responde "macho" e depois "4 anos" está respondendo a MESMA
+      pergunta em duas mensagens. Sem juntar, a segunda apagaria a primeira e
+      a conversa nunca sairia daqui.
+    */
+    const atual = (situacao.sujeito ?? {}) as Dados
+    const sexo = lido.sexo ?? (atual.sexo ? String(atual.sexo) : null)
+    const idade =
+      lido.idadeMeses ??
+      (atual.idade_meses_na_avaliacao != null ? Number(atual.idade_meses_na_avaliacao) : null)
+
+    if (!sexo && idade === null) {
+      return `Não consegui entender. Me diga se é *macho* ou *fêmea*, e a *idade*.\n\nPor exemplo: "égua, 5 anos".`
+    }
+
+    const { data: res, error } = await supabase.rpc('morfologia_definir_sujeito', {
+      p_telefone: numero,
+      p_nome: String(situacao.animal ?? atual.nome ?? 'Sem nome'),
+      p_sexo: sexo,
+      p_idade_meses: idade,
+      p_confirmado: true,
+    })
+    if (error) return `Não consegui: ${error.message}`
+
+    const r = (res as Dados) ?? {}
+    if (String(r.estado) === 'COLETAR_DADOS') {
+      return !sexo
+        ? 'Anotei a idade. Falta dizer: *macho* ou *fêmea*?'
+        : 'Anotei. Falta a *idade* — pode ser em anos ou meses.'
+    }
+    return String(r.instrucao ?? '')
+  }
+
+  if (estado === 'PRONTA_PARA_PROCESSAR') {
+    return 'O material está completo e já estou processando. Te mando o laudo assim que ficar pronto. 👍'
+  }
+
+  // Estado de pedido de mídia: a pessoa escreveu em vez de mandar o arquivo.
+  return instrucao || 'Pode mandar o arquivo quando estiver pronto.'
+}
+
 // ============================================================ boas-vindas
 
 const RECUSA = [
@@ -1250,10 +1511,24 @@ Deno.serve(async (req) => {
   const estendida = msg.extendedTextMessage as Dados | undefined
   const imagem = msg.imageMessage as Dados | undefined
   const audio = msg.audioMessage as Dados | undefined
-  let texto = String(msg.conversation ?? estendida?.text ?? imagem?.caption ?? '').trim()
+  /*
+    Vídeo só interessa à avaliação morfológica — e chega de duas formas: como
+    vídeo mesmo, ou como documento, que é o que o WhatsApp faz quando a pessoa
+    manda pela galeria em "documento" para não perder qualidade. Ignorar o
+    segundo caso recusaria justamente o arquivo melhor.
+  */
+  const documento = msg.documentMessage as Dados | undefined
+  const video = (msg.videoMessage ??
+    (String(documento?.mimetype ?? '').startsWith('video/') ? documento : undefined)) as
+    | Dados
+    | undefined
+  let texto = String(
+    msg.conversation ?? estendida?.text ?? imagem?.caption ?? video?.caption ?? '',
+  ).trim()
 
   const { data: membros } = await supabase.rpc('membro_por_telefone', { p_numero: numero })
   const membro = (Array.isArray(membros) ? membros[0] : null) as Dados | null
+
 
   // ------------------------------------------------------ confirmação do número
   const candidato = texto.match(PIN)?.[1]
@@ -1279,6 +1554,8 @@ Deno.serve(async (req) => {
   const user = String(membro.user_id)
   const harasId = String(membro.haras_id)
   const veFinanceiro = membro.papel === 'dono' || membro.papel === 'gerente'
+  // Módulo exclusivo. Quem não tem nem fica sabendo que existe.
+  const temMorfologia = membro.morfologia === true
 
   // Só quem vê financeiro precisa da lista: é ela que alimenta o agrupamento
   // de despesa por evento.
@@ -1307,38 +1584,6 @@ Deno.serve(async (req) => {
   const pendente = pendenteBruto as Dados | null
 
   const limpar = () => supabase.from('intencoes').delete().eq('telefone', numero)
-
-  // ------------------------------------------------------------------- foto
-  if (imagem) {
-    /*
-      De qual animal é a foto, em ordem de certeza: o que a legenda diz, o que
-      está sendo cadastrado agora, ou o último cadastrado nos últimos minutos.
-      Sem nenhum dos três, pergunta — anexar no animal errado é pior que
-      perguntar.
-    */
-    // Só id e nome importam aqui — o último cadastrado vem de outra consulta,
-    // que não traz sexo nem status.
-    let alvo: { id: string; nome: string } | undefined = plantel.find(
-      (a) => texto && a.nome.toLowerCase().includes(texto.toLowerCase()),
-    )
-
-    if (!alvo && pendente?.dados) {
-      const id = (pendente.dados as Dados).animal_id
-      if (id) alvo = plantel.find((a) => a.id === id)
-    }
-    if (!alvo) {
-      const { data: ultimo } = await supabase.rpc('agente_ultimo_animal', { p_user: user, p_minutos: 10 })
-      const u = (Array.isArray(ultimo) ? ultimo[0] : null) as Dados | null
-      if (u) alvo = { id: String(u.id), nome: String(u.nome) }
-    }
-
-    const resposta = alvo
-      ? await anexarFoto(instancia, chave, user, harasId, alvo.id, alvo.nome)
-      : '📸 Recebi a foto! De qual animal é? Responda com o nome dele.'
-
-    await enviar(instancia, numero, resposta)
-    return new Response('ok')
-  }
 
   // ------------------------------------------------------------------ áudio
   const veioDeAudio = Boolean(audio)
@@ -1377,6 +1622,80 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ------------------------------------------------------------- morfologia
+  //
+  // Vem ANTES da foto de perfil e antes do cérebro, de propósito.
+  //
+  // Com uma avaliação aberta, a foto que chega é a foto do lado esquerdo do
+  // cavalo sendo avaliado — não uma foto para a ficha. E "Relâmpago" é a
+  // resposta de qual animal é, não um pedido para o modelo interpretar. O
+  // roteiro sabe o que está esperando; mandar isso ao cérebro trocaria
+  // certeza por palpite.
+  {
+    const { data: sitBruta } = await supabase.rpc('morfologia_situacao', { p_telefone: numero })
+    const situacao = (Array.isArray(sitBruta) ? sitBruta[0] : sitBruta) as Dados | null
+
+    if (situacao?.ativa) {
+      const resposta =
+        imagem || video
+          ? await morfologiaMidia(instancia, chave, numero, harasId, situacao)
+          : texto
+            ? await morfologiaTexto(user, numero, texto, situacao)
+            : ''
+
+      /*
+        Sempre em texto, nunca em voz.
+
+        A instrução de foto tem numeração ("1 de 6") e detalhe de
+        enquadramento. Ouvir isso com o celular na mão e o cavalo parado é
+        pior do que ler: perde-se a ordem no meio e é preciso repetir tudo.
+      */
+      /*
+        Nunca fica mudo.
+
+        Se chegou algo que o roteiro não sabe tratar — um sticker, uma
+        localização — repetir o que está sendo esperado é a única resposta
+        útil. Silêncio no meio da coleta parece o sistema ter travado, e quem
+        está no campo com o cavalo parado desiste.
+      */
+      await responder(resposta || String(situacao.instrucao ?? ''), true)
+      return new Response('ok')
+    }
+  }
+
+  // ------------------------------------------------------------------- foto
+  if (imagem) {
+    /*
+      De qual animal é a foto, em ordem de certeza: o que a legenda diz, o que
+      está sendo cadastrado agora, ou o último cadastrado nos últimos minutos.
+      Sem nenhum dos três, pergunta — anexar no animal errado é pior que
+      perguntar.
+    */
+    // Só id e nome importam aqui — o último cadastrado vem de outra consulta,
+    // que não traz sexo nem status.
+    let alvo: { id: string; nome: string } | undefined = plantel.find(
+      (a) => texto && a.nome.toLowerCase().includes(texto.toLowerCase()),
+    )
+
+    if (!alvo && pendente?.dados) {
+      const id = (pendente.dados as Dados).animal_id
+      if (id) alvo = plantel.find((a) => a.id === id)
+    }
+    if (!alvo) {
+      const { data: ultimo } = await supabase.rpc('agente_ultimo_animal', { p_user: user, p_minutos: 10 })
+      const u = (Array.isArray(ultimo) ? ultimo[0] : null) as Dados | null
+      if (u) alvo = { id: String(u.id), nome: String(u.nome) }
+    }
+
+    const resposta = alvo
+      ? await anexarFoto(instancia, chave, user, harasId, alvo.id, alvo.nome)
+      : '📸 Recebi a foto! De qual animal é? Responda com o nome dele.'
+
+    await enviar(instancia, numero, resposta)
+    return new Response('ok')
+  }
+
+
   if (!texto) return new Response('ok')
 
   // ---------------------------------------------------------------- cérebro
@@ -1386,7 +1705,49 @@ Deno.serve(async (req) => {
     veFinanceiro,
     pendente ? { acao: String(pendente.acao), dados: pendente.dados as Dados } : null,
     eventosDoHaras,
+    temMorfologia,
   )
+
+  /*
+    Abrir a avaliacao morfologica.
+
+    `morfologia_iniciar` nunca recomeca sozinha: quem mandou cinco fotos ontem
+    e diz "vamos avaliar um cavalo" hoje quase sempre quer CONTINUAR. Retomar
+    e o padrao porque refazer a coleta custa meia hora de campo com o animal
+    parado e boa luz.
+  */
+  if (leitura.acao === 'avaliar_morfologia') {
+    await limpar()
+    const { data: ini, error } = await supabase.rpc('morfologia_iniciar', {
+      p_user: user,
+      p_telefone: numero,
+    })
+    const i = (ini ?? {}) as Dados
+    if (error || i.ok === false) {
+      await responder(String(i.mensagem ?? 'Não consegui abrir a avaliação agora.'), true)
+      return new Response('ok')
+    }
+
+    // Ela ja disse de qual animal: nao perguntar de novo o que ela acabou de dizer.
+    const citado = String((leitura.dados as Dados).animal_id ?? '')
+    if (citado && plantel.some((a) => a.id === citado)) {
+      const { data: def } = await supabase.rpc('morfologia_definir_sujeito', {
+        p_telefone: numero,
+        p_animal_id: citado,
+        p_confirmado: true,
+      })
+      await responder(String((def as Dados)?.instrucao ?? ''), true)
+      return new Response('ok')
+    }
+
+    const { data: sit } = await supabase.rpc('morfologia_situacao', { p_telefone: numero })
+    const s = (Array.isArray(sit) ? sit[0] : sit) as Dados | null
+    const abertura = i.retomada
+      ? 'Voltando à avaliação que estava em andamento.\n\n'
+      : ''
+    await responder(abertura + String(s?.instrucao ?? ''), true)
+    return new Response('ok')
+  }
 
   if (leitura.acao === 'ajuda') {
     await responder(AJUDA, true)
