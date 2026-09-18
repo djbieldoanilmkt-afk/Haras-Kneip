@@ -868,7 +868,8 @@ export default function Perfil() {
       </Card>
 
       <Tabs defaultValue="informacoes">
-        <TabsList className="mb-4">
+        {/* Sem margem: a raiz das abas já separa a barra do painel com `gap-2`. */}
+        <TabsList>
           <TabsTrigger value="informacoes">Informações</TabsTrigger>
           <TabsTrigger value="genealogia">Genealogia</TabsTrigger>
           <TabsTrigger value="saude">Saúde</TabsTrigger>
