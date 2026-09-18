@@ -1,0 +1,12 @@
+{
+  "name": "haraspro-morfologia-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Extrai quadros de video para a avaliacao morfologica. Existe porque Edge Function nao tem FFmpeg.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/servidor.js",
+    "test": "node --test teste/"
+  }
+}
