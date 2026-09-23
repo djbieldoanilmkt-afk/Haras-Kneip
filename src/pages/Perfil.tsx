@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Heart, MapPin, Pencil, Plus, Ruler, Scale, Trash2 } from 'lucide-react'
+import { ChevronLeft, Heart, MapPin, Pencil, Plus, Ruler, Scale, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { PageHeader } from '@/components/PageHeader'
+import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PedigreeTree } from '@/components/PedigreeTree'
 import { iniciais } from '@/components/AnimalCard'
@@ -45,26 +45,50 @@ function CabecalhoAba({ titulo, acao }: { titulo: string; acao?: ReactNode }) {
   )
 }
 
-// ---------------------------------------------------------------- informações
+// ------------------------------------------------------------------- resumo
 
-function AbaInformacoes({ animal }: { animal: Animal }) {
+/*
+  O retrato do animal, na coluna da esquerda.
+
+  Estes campos saíram de dentro de uma aba. Eram a identidade do bicho —
+  registro, nascimento, pelagem — escondidos atrás de um clique, enquanto a
+  coluna ao lado ficava vazia. Aqui ficam sempre à vista, e a aba aberta deixa
+  de decidir se você sabe de que cavalo está falando.
+*/
+function Ficha({ animal }: { animal: Animal }) {
+  const campos: [string, string][] = [
+    ['Registro ABCCMM', animal.registro_abccmm || '--'],
+    ['Registro interno', animal.registro || '--'],
+    ['Nascimento', animal.data_nascimento ? formatDate(animal.data_nascimento) : '--'],
+    ['Sexo', animal.sexo === 'Fêmea' ? 'Égua' : 'Garanhão'],
+    ['Apelido', animal.apelido || '--'],
+    ['Tipo de marcha', animal.tipo_marcha || '--'],
+    ['Premiações', animal.premiacao || '--'],
+  ]
+
+  return (
+    <Card className="gap-0 p-4">
+      <h2 className="text-muted-foreground mb-3 text-[11px] font-semibold tracking-wider uppercase">
+        Ficha
+      </h2>
+      <dl className="divide-border divide-y">
+        {campos.map(([rotulo, valor]) => (
+          <div key={rotulo} className="flex items-baseline justify-between gap-3 py-2">
+            <dt className="text-muted-foreground shrink-0 text-xs">{rotulo}</dt>
+            <dd className="text-right text-sm font-medium">{valor}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  )
+}
+
+function AbaResumo({ animal }: { animal: Animal }) {
   const { data: pesagens, loading, reload } = useAsync(() => store.getPesagens(animal.id), [animal.id])
   const [aberto, setAberto] = useState(false)
   const [data, setData] = useState(hojeISO())
   const [peso, setPeso] = useState('')
   const [salvando, setSalvando] = useState(false)
-
-  const detalhes: [string, string][] = [
-    ['Nome', animal.nome],
-    ['Apelido', animal.apelido || '--'],
-    ['Registro ABCCMM', animal.registro_abccmm || '--'],
-    ['Registro interno', animal.registro || '--'],
-    ['Data de nascimento', animal.data_nascimento ? formatDate(animal.data_nascimento) : '--'],
-    ['Sexo', animal.sexo === 'Fêmea' ? 'Égua' : 'Garanhão'],
-    ['Pelagem', animal.pelagem || '--'],
-    ['Tipo de marcha', animal.tipo_marcha || '--'],
-    ['Premiações', animal.premiacao || '--'],
-  ]
 
   async function salvar() {
     const valor = Number(peso)
@@ -87,25 +111,7 @@ function AbaInformacoes({ animal }: { animal: Animal }) {
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <Card className="p-4">
-        <CabecalhoAba titulo="Detalhes" />
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-          {detalhes.map(([rotulo, valor]) => (
-            <div key={rotulo}>
-              <dt className="text-muted-foreground text-[11px] tracking-wide uppercase">{rotulo}</dt>
-              <dd className="mt-0.5 text-sm">{valor}</dd>
-            </div>
-          ))}
-          <div className="col-span-2">
-            <dt className="text-muted-foreground text-[11px] tracking-wide uppercase">
-              Observações
-            </dt>
-            <dd className="mt-0.5 text-sm whitespace-pre-wrap">{animal.observacoes || '--'}</dd>
-          </div>
-        </dl>
-      </Card>
-
+    <div className="grid gap-3">
       <Card className="p-4">
         <CabecalhoAba
           titulo="Histórico de peso"
@@ -125,6 +131,15 @@ function AbaInformacoes({ animal }: { animal: Animal }) {
               peso: Number(p.peso),
             }))}
           />
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <CabecalhoAba titulo="Observações" />
+        {animal.observacoes ? (
+          <p className="text-sm whitespace-pre-wrap">{animal.observacoes}</p>
+        ) : (
+          <Vazio>Nada anotado sobre este animal.</Vazio>
         )}
       </Card>
 
@@ -794,105 +809,144 @@ export default function Perfil() {
 
   return (
     <>
-      <PageHeader
-        title="Perfil do animal"
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              nativeButton={false}
-              render={<Link to={`/editar-animal/${animal.id}`} />}
+      {/*
+        O título era "Perfil do animal" — que qualquer um já sabia, tendo
+        clicado no animal. No lugar dele, o caminho de volta: é o que a pessoa
+        realmente quer da linha de cima depois de olhar uma ficha.
+      */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          to="/catalogo"
+          className="text-muted-foreground hover:text-foreground -ml-1 inline-flex items-center gap-1 text-sm transition-colors"
+        >
+          <ChevronLeft className="size-4" />
+          Plantel
+        </Link>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link to={`/editar-animal/${animal.id}`} />}
+          >
+            <Pencil className="size-4" />
+            Editar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setConfirmando(true)}>
+            <Trash2 className="text-destructive size-4" />
+            Excluir
+          </Button>
+        </div>
+      </div>
+
+      {/*
+        Duas colunas: quem é o animal à esquerda, o que aconteceu com ele à
+        direita. Antes tudo disputava o mesmo espaço dentro das abas — e a
+        largura sobrando virava vazio.
+      */}
+      <div className="grid items-start gap-4 lg:grid-cols-[19rem_minmax(0,1fr)]">
+        <div className="grid gap-3 lg:sticky lg:top-4">
+          <Card className="gap-0 p-0">
+            {/*
+              Com retrato, 4:3 — a proporção em que se fotografa cavalo de
+              perfil. Sem retrato, uma faixa baixa: no celular o 4:3 virava
+              quase 300px de nada, e hoje nenhum animal do plantel tem foto.
+            */}
+            <div
+              className={cn(
+                'bg-secondary flex w-full items-center justify-center overflow-hidden',
+                animal.foto_url ? 'aspect-[4/3]' : 'h-24',
+              )}
             >
-              <Pencil className="size-4" />
-              Editar
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setConfirmando(true)}>
-              <Trash2 className="text-destructive size-4" />
-              Excluir
-            </Button>
-          </>
-        }
-      />
-
-      <Card className="mb-4 p-4">
-        <div className="flex flex-wrap items-start gap-5">
-          <div className="bg-secondary border-border flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
-            {animal.foto_url ? (
-              <img src={animal.foto_url} alt={animal.nome} className="size-full object-cover" />
-            ) : (
-              <span className="font-brand text-primary text-3xl font-bold">
-                {iniciais(animal.nome)}
-              </span>
-            )}
-          </div>
-
-          <div className="min-w-60 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold">{animal.nome}</h2>
-              <StatusBadge status={animal.status_reprodutivo} />
-            </div>
-
-            <div className="text-muted-foreground mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              <span>
-                <strong className="text-foreground font-medium">Pelagem:</strong>{' '}
-                {animal.pelagem || '--'}
-              </span>
-              <span>
-                <strong className="text-foreground font-medium">Marcha:</strong>{' '}
-                {animal.tipo_marcha || '--'}
-              </span>
-              <span>
-                <strong className="text-foreground font-medium">Idade:</strong>{' '}
-                {calcularIdade(animal.data_nascimento)}
-              </span>
-              {animal.registro_abccmm && (
-                <span>
-                  <strong className="text-foreground font-medium">ABCCMM:</strong>{' '}
-                  {animal.registro_abccmm}
+              {animal.foto_url ? (
+                <img src={animal.foto_url} alt={animal.nome} className="size-full object-cover" />
+              ) : (
+                <span className="font-brand text-primary/25 text-4xl font-bold">
+                  {iniciais(animal.nome)}
                 </span>
               )}
             </div>
 
-            <div className="bg-secondary/60 border-border flex flex-wrap gap-x-6 gap-y-2 rounded-md border p-3">
-              {metricas.map(([Icone, rotulo, valor]) => (
-                <div key={rotulo} className="flex items-center gap-1.5 text-sm">
-                  <Icone className="text-muted-foreground size-4" />
-                  <span className="text-muted-foreground">{rotulo}:</span>
-                  <strong className="font-medium">{valor}</strong>
+            <div className="p-4">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <h1 className="text-lg leading-tight font-bold">{animal.nome}</h1>
+                <StatusBadge status={animal.status_reprodutivo} />
+              </div>
+              <p className="text-muted-foreground text-sm">
+                {[animal.pelagem, calcularIdade(animal.data_nascimento)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
+
+            {/*
+              Quatro números numa grade de duas por duas, com as divisórias
+              formando a grade. Em linha corrida eles viravam uma frase, e
+              ninguém lê peso e altura como frase.
+            */}
+            <div className="border-border grid grid-cols-2 border-t">
+              {metricas.map(([Icone, rotulo, valor], i) => (
+                <div
+                  key={rotulo}
+                  className={cn(
+                    'border-border px-4 py-3',
+                    i % 2 === 0 && 'border-r',
+                    i < 2 && 'border-b',
+                  )}
+                >
+                  <div className="text-muted-foreground mb-0.5 flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+                    <Icone className="size-3.5" />
+                    {rotulo}
+                  </div>
+                  <div className="truncate text-sm font-semibold">{valor}</div>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
+
+          <Ficha animal={animal} />
         </div>
-      </Card>
 
-      <Tabs defaultValue="informacoes">
-        {/* Sem margem: a raiz das abas já separa a barra do painel com `gap-2`. */}
-        <TabsList>
-          <TabsTrigger value="informacoes">Informações</TabsTrigger>
-          <TabsTrigger value="genealogia">Genealogia</TabsTrigger>
-          <TabsTrigger value="saude">Saúde</TabsTrigger>
-          <TabsTrigger value="reproducao">Reprodução</TabsTrigger>
-          <TabsTrigger value="anotacoes">Anotações</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="resumo">
+          {/*
+            Variante `line`: uma fileira de rótulos com sublinhado no ativo, em
+            vez do caixote cinza. A borda inferior corre por baixo da barra
+            inteira, então o sublinhado marca a aba aberta sobre uma régua.
+          */}
+          {/*
+            `flex-none` nos gatilhos: eles nascem com `flex-1` para dividir a
+            largura do caixote cinza em partes iguais. Numa régua que ocupa a
+            linha toda, isso espalharia cinco rótulos por 900px de vão.
+          */}
+          <TabsList
+            variant="line"
+            className="border-border w-full justify-start border-b pb-1.5 [&_[data-slot=tabs-trigger]]:flex-none"
+          >
+            <TabsTrigger value="resumo">Resumo</TabsTrigger>
+            <TabsTrigger value="genealogia">Genealogia</TabsTrigger>
+            <TabsTrigger value="saude">Saúde</TabsTrigger>
+            <TabsTrigger value="reproducao">Reprodução</TabsTrigger>
+            <TabsTrigger value="anotacoes">Anotações</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="informacoes">
-          <AbaInformacoes animal={animal} />
-        </TabsContent>
-        <TabsContent value="genealogia">
-          <AbaGenealogia animal={animal} />
-        </TabsContent>
-        <TabsContent value="saude">
-          <AbaSaude animal={animal} />
-        </TabsContent>
-        <TabsContent value="reproducao">
-          <AbaReproducao animal={animal} />
-        </TabsContent>
-        <TabsContent value="anotacoes">
-          <AbaAnotacoes animal={animal} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="resumo">
+            <AbaResumo animal={animal} />
+          </TabsContent>
+          <TabsContent value="genealogia">
+            <AbaGenealogia animal={animal} />
+          </TabsContent>
+          <TabsContent value="saude">
+            <AbaSaude animal={animal} />
+          </TabsContent>
+          <TabsContent value="reproducao">
+            <AbaReproducao animal={animal} />
+          </TabsContent>
+          <TabsContent value="anotacoes">
+            <AbaAnotacoes animal={animal} />
+          </TabsContent>
+        </Tabs>
+      </div>
 
       <Dialog open={confirmando} onOpenChange={setConfirmando}>
         <DialogContent>
