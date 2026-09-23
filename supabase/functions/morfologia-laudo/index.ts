@@ -213,6 +213,15 @@ function montarPdf(laudo: Dados): Promise<Uint8Array> {
       )
       if (r.analise) f.texto(String(r.analise), { tamanho: 9, recuo: 10 })
 
+      /*
+        Região cuja prosa o guardrail reteve: no lugar dela vai a explicação.
+        Deixar o espaço em branco faria a região parecer mal avaliada, quando o
+        que houve foi um parágrafo escrito fora do que este laudo pode afirmar.
+      */
+      if (r.texto_retido) {
+        f.texto(String(r.texto_retido), { tamanho: 8.5, recuo: 10, cor: ALERTA })
+      }
+
       for (const p of (r.pontos_fortes ?? []) as string[]) {
         f.texto(`+ ${p}`, { tamanho: 9, recuo: 10, cor: rgb(0.1, 0.42, 0.22) })
       }

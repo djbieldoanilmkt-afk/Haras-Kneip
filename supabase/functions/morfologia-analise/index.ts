@@ -22,12 +22,19 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { lerNotasDoModelo } from '../_compartilhado/analise.ts'
+import { lerVeredito, pedidoDoGuardrail, type Veredito } from '../_compartilhado/guardrail.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const OPENROUTER_KEY = Deno.env.get('OPENROUTER_KEY')!
 const SEGREDO = Deno.env.get('RESUMO_SEGREDO') ?? ''
 const MODELO = Deno.env.get('OPENROUTER_MODELO_VISAO') ?? 'google/gemini-2.5-flash'
+
+/* O guardrail. Modelo de decisão tipada: não escreve, só responde a
+   probabilidade de uma afirmação ser verdadeira. Meio segundo, fração de
+   centavo — barato o bastante para rodar em toda análise. */
+const MODELO_GUARDRAIL = Deno.env.get('OPENROUTER_MODELO_DECISAO') ?? 'typesafe/jev-1.13'
+const ROTA_DECISAO = 'https://openrouter.ai/api/alpha/decisions'
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 const BALDE = 'morfologia'
@@ -189,6 +196,58 @@ async function analisarGrupo(pauta: Dados, etapa: string) {
   }
 }
 
+/*
+  Passa a prosa das notas pelo guardrail antes de ela virar documento.
+
+  O laudo declara, em letras garrafais, que NÃO aplica o padrão oficial da raça
+  enquanto o protocolo for rascunho. O prompt pede ao modelo de visão que
+  respeite isso — mas pedido não é garantia, e um parágrafo abrindo com "para a
+  raça, espera-se…" saía impresso logo abaixo do aviso que diz o contrário.
+
+  Uma chamada por grupo, com todas as regiões dentro: perguntar de uma em uma
+  custaria doze vezes mais pela mesma resposta.
+
+  FALHA ABERTA, E DE PROPÓSITO
+
+  Se o guardrail não responde, as notas são gravadas sem marca e a falha entra
+  em `problemas`, que fica visível na tarefa. Barrar tudo numa instabilidade de
+  rede entregaria um laudo sem uma linha de análise — pior, e mais difícil de
+  diagnosticar, do que o texto que já saía antes desta verificação existir.
+*/
+async function passarNoGuardrail(
+  notas: { criterio: string; analise: string | null; pontos_fortes: string[]; pontos_atencao: string[] }[],
+): Promise<{ vereditos: Map<string, Veredito>; uso: Dados | null; falha: string | null }> {
+  const vazio = { vereditos: new Map<string, Veredito>(), uso: null, falha: null }
+
+  const pedido = pedidoDoGuardrail(notas)
+  if (!pedido) return vazio
+
+  const t0 = Date.now()
+  try {
+    const r = await fetch(ROTA_DECISAO, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENROUTER_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: MODELO_GUARDRAIL, ...pedido }),
+    })
+    if (!r.ok) {
+      return { ...vazio, falha: `guardrail respondeu ${r.status}: ${(await r.text()).slice(0, 200)}` }
+    }
+    const d = (await r.json()) as Dados
+    return {
+      vereditos: lerVeredito(d as never),
+      uso: {
+        tokens_entrada: (d.usage as Dados)?.input_tokens ?? (d.usage as Dados)?.prompt_tokens ?? null,
+        tokens_saida: (d.usage as Dados)?.output_tokens ?? (d.usage as Dados)?.completion_tokens ?? null,
+        custo: (d.usage as Dados)?.cost ?? null,
+        duracao: Date.now() - t0,
+      },
+      falha: null,
+    }
+  } catch (e) {
+    return { ...vazio, falha: `guardrail não respondeu: ${(e as Error).message}` }
+  }
+}
+
 /** Processa uma tarefa de análise inteira: os três grupos. */
 async function analisar(tarefa: Dados, etapa: string) {
   const aval = String(tarefa.avaliacao_id)
@@ -229,6 +288,9 @@ async function analisar(tarefa: Dados, etapa: string) {
       const { leitura, uso } = await analisarGrupo(pauta as Dados, etapa)
       const conhecimento = ((pauta as Dados).conhecimento ?? []) as Dados[]
 
+      const guarda = await passarNoGuardrail(leitura.notas)
+      if (guarda.falha) problemas.push(guarda.falha)
+
       for (const n of leitura.notas) {
         /*
           Cada nota guarda só a procedência que valia para AQUELA região.
@@ -252,8 +314,17 @@ async function analisar(tarefa: Dados, etapa: string) {
           p_analise: n.analise,
           p_evidencias: n.evidencias,
           p_conhecimento_ids: fontes,
+          /* Sem veredito — guardrail fora do ar, ou região sem texto — a nota
+             entra sem marca. Ausência de resposta não é uma resposta. */
+          p_texto_barrado: guarda.vereditos.get(n.criterio)?.barrado ?? false,
+          p_texto_barrado_prob: guarda.vereditos.get(n.criterio)?.probabilidade ?? null,
         })
         if (erroNota) problemas.push(`${n.criterio}: ${erroNota.message}`)
+      }
+
+      const barradas = leitura.notas.filter((n) => guarda.vereditos.get(n.criterio)?.barrado)
+      if (barradas.length) {
+        problemas.push(`texto retido pelo guardrail: ${barradas.map((n) => n.criterio).join(', ')}`)
       }
 
       await supabase.rpc('morfologia_registrar_uso', {
@@ -265,6 +336,20 @@ async function analisar(tarefa: Dados, etapa: string) {
         p_custo_usd: uso.custo,
         p_duracao_ms: uso.duracao,
       })
+
+      /* O guardrail custa dinheiro e entra na mesma conta: se um dia alguém
+         perguntar quanto custa uma avaliação, a resposta inclui a verificação. */
+      if (guarda.uso) {
+        await supabase.rpc('morfologia_registrar_uso', {
+          p_avaliacao: aval,
+          p_etapa: `guardrail_${etapa}_${g.grupo}`,
+          p_modelo: MODELO_GUARDRAIL,
+          p_tokens_entrada: guarda.uso.tokens_entrada,
+          p_tokens_saida: guarda.uso.tokens_saida,
+          p_custo_usd: guarda.uso.custo,
+          p_duracao_ms: guarda.uso.duracao,
+        })
+      }
 
       /*
         Região que o modelo não devolveu fica sem nota, e isso precisa aparecer.
