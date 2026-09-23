@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Heart, MapPin, Pencil, Plus, Ruler, Scale, Trash2 } from 'lucide-react'
+// `Ruler` serve às duas coisas: a altura na ficha e a avaliação morfológica.
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
@@ -764,6 +765,24 @@ export default function Perfil() {
   const { data: animal, loading, error } = useAsync(() => store.getAnimal(id), [id])
   const [confirmando, setConfirmando] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
+  const [avaliando, setAvaliando] = useState(false)
+
+  /*
+    Quem decide retomar ou abrir nova é o banco, não esta tela — o WhatsApp
+    precisa da mesma decisão, e duas telas decidindo sozinhas acabariam
+    decidindo diferente sobre o mesmo cavalo.
+  */
+  async function avaliarMorfologia() {
+    setAvaliando(true)
+    try {
+      const r = await store.abrirAvaliacao(id)
+      if (r.retomada) toast.info('Retomando a avaliação que já estava aberta.')
+      navigate(`/morfologia/${r.avaliacao_id}`)
+    } catch (e) {
+      toast.error(`Não consegui abrir: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+      setAvaliando(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -824,6 +843,15 @@ export default function Perfil() {
         </Link>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/*
+            O botão mora aqui, e não só no menu lateral: a avaliação é DE um
+            animal, e quem decide avaliar está olhando a ficha dele. Obrigar a
+            ir ao menu e procurar o nome de novo é atrito puro.
+          */}
+          <Button variant="outline" size="sm" onClick={avaliarMorfologia} disabled={avaliando}>
+            <Ruler className="size-4" />
+            Avaliar morfologia
+          </Button>
           <Button
             variant="outline"
             size="sm"

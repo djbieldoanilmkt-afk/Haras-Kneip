@@ -5,6 +5,7 @@ import {
   BookOpen,
   Calendar,
   LayoutDashboard,
+  Ruler,
   Settings,
   ShieldCheck,
   Wallet,
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/catalogo', label: 'Plantel', icon: BookOpen },
   { to: '/reproducao', label: 'Reprodução', icon: Baby },
   { to: '/sanidade', label: 'Sanidade', icon: ShieldCheck },
+  { to: '/morfologia', label: 'Morfologia', icon: Ruler },
   // `financeiro: true` some do menu para quem não tem acesso ao livro. Esconder
   // é só conveniência: quem recusa de verdade é o RLS.
   { to: '/financeiro', label: 'Financeiro', icon: Wallet, financeiro: true },

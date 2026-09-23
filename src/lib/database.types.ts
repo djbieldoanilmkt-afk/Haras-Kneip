@@ -271,3 +271,95 @@ export type DespesaRateio = {
   valor: number
   created_at: string
 }
+
+/* ======================================================= morfologia ======= */
+
+/*
+  O que o banco devolve para a tela de avaliação morfológica.
+  Nada aqui é tabela: são retornos de `morfologia_app_*`, que montam a resposta
+  já no formato que a tela desenha — inclusive os rótulos em português, para
+  que o roteiro das nove peças exista num lugar só.
+*/
+
+export type AvaliacaoResumo = {
+  avaliacao_id: string
+  estado: string
+  origem: 'app' | 'whatsapp'
+  finalidade: string | null
+  nota_geral: number | null
+  confianca: number | null
+  qualidade_material: number | null
+  iniciada_em: string
+  concluida_em: string | null
+  erro: string | null
+  animal: string | null
+  animal_id: string | null
+  laudo: string | null
+  /** Peças do roteiro que já chegaram e servem. Vai de 0 a 9. */
+  pecas: number
+}
+
+export type AberturaAvaliacao = {
+  ok: boolean
+  /** Verdadeiro quando já havia uma avaliação aberta para este animal. */
+  retomada: boolean
+  avaliacao_id: string
+  animal: string
+  estado: string
+  completo: boolean
+}
+
+export type PecaMaterial = {
+  papel: string
+  /** "foto do lado esquerdo", e não LATERAL_ESQ. */
+  rotulo: string
+  tipo: 'foto' | 'video'
+  enviada: boolean
+  caminho: string | null
+  validacao: 'ACEITA' | 'REPETIR_RECOMENDADO' | 'RECUSADA' | null
+  observacao: string | null
+  bytes: number | null
+  quadros: number | null
+}
+
+export type TarefaAvaliacao = {
+  tipo: string
+  situacao: 'na_fila' | 'processando' | 'concluida' | 'falhou'
+  erro: string | null
+  tentativas: number
+}
+
+export type PainelAvaliacao = {
+  avaliacao_id: string
+  estado: string
+  origem: 'app' | 'whatsapp'
+  finalidade: string | null
+  iniciada_em: string
+  concluida_em: string | null
+  nota_geral: number | null
+  confianca: number | null
+  qualidade_material: number | null
+  potencial: string | null
+  erro: string | null
+  completo: boolean
+  animal: {
+    nome: string
+    animal_id: string | null
+    sexo: string | null
+    idade_meses: number | null
+  } | null
+  material: PecaMaterial[]
+  tarefas: TarefaAvaliacao[]
+  laudo: { caminho: string; arquivo: string; bytes: number | null; gerado_em: string } | null
+}
+
+export type RetornoMidia = {
+  ok: boolean
+  midia_id: string
+  papel: string
+  rotulo: string
+  validacao: string
+  substituiu: boolean
+  estado: string
+  completo: boolean
+}

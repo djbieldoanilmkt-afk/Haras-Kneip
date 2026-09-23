@@ -11,9 +11,11 @@
 import { supabase } from './supabase'
 import { paraCentavos, paraReais, ratearCentavos } from './dinheiro'
 import type {
+  AberturaAvaliacao,
   Animal,
   AnimalResumo,
   Anotacao,
+  AvaliacaoResumo,
   Configuracao,
   Convite,
   ConviteRecebido,
@@ -24,8 +26,10 @@ import type {
   Haras,
   Membro,
   MembroEquipe,
+  PainelAvaliacao,
   Pesagem,
   Reproducao,
+  RetornoMidia,
   SaudeRegistro,
   TabelaReversivel,
 } from './database.types'
@@ -1156,6 +1160,102 @@ export const store = {
     if (error) throw error
     if (!data) throw new Error('Sua conta não está vinculada a nenhum haras.')
     return (data as { haras_id: string }).haras_id
+  },
+
+  // ----------------------------------------------------------- morfologia
+
+  /** As avaliações do haras, da mais recente para a mais antiga. */
+  async getAvaliacoes(): Promise<AvaliacaoResumo[]> {
+    const { data, error } = await supabase.rpc('morfologia_app_lista')
+    if (error) throw new Error(error.message)
+    return (data ?? []) as AvaliacaoResumo[]
+  },
+
+  /**
+   * Abre a avaliação de um animal — ou devolve a que já estava aberta.
+   *
+   * Retomar é decisão do banco, não da tela: o WhatsApp precisa da mesma
+   * resposta, e duas telas decidindo sozinhas acabariam decidindo diferente.
+   */
+  async abrirAvaliacao(animalId: string, finalidade?: string): Promise<AberturaAvaliacao> {
+    const { data, error } = await supabase.rpc('morfologia_app_abrir', {
+      p_animal: animalId,
+      p_finalidade: finalidade ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return data as AberturaAvaliacao
+  },
+
+  async getPainelAvaliacao(id: string): Promise<PainelAvaliacao> {
+    const { data, error } = await supabase.rpc('morfologia_app_painel', { p_avaliacao: id })
+    if (error) throw new Error(error.message)
+    return data as PainelAvaliacao
+  },
+
+  async cancelarAvaliacao(id: string): Promise<void> {
+    const { error } = await supabase.rpc('morfologia_app_cancelar', { p_avaliacao: id })
+    if (error) throw new Error(error.message)
+  },
+
+  /**
+   * Sobe uma peça do material e a registra.
+   *
+   * O arquivo vai DIRETO para o balde, sem passar por função: um vídeo de
+   * 100 MB atravessando uma Edge Function seria lento, caro e esbarraria no
+   * teto de corpo da requisição. Quem autoriza é a política do Storage, que
+   * confere o id do haras na primeira pasta do caminho.
+   *
+   * A ordem importa. O arquivo sobe primeiro e só então a linha é gravada:
+   * gravar antes deixaria, numa queda de rede, uma mídia apontando para um
+   * caminho vazio — e a análise pediria ao modelo de visão uma imagem que não
+   * existe. Arquivo órfão no balde é desperdício; registro órfão é laudo errado.
+   */
+  async enviarMidiaAvaliacao(entrada: {
+    avaliacaoId: string
+    harasId: string
+    papel: string
+    arquivo: File
+    validacao: string
+    codigos: string[]
+    observacao: string | null
+    largura: number | null
+    altura: number | null
+  }): Promise<RetornoMidia> {
+    const extensao = entrada.arquivo.name.split('.').pop()?.toLowerCase() || 'bin'
+    const nome = `${entrada.papel.toLowerCase()}.${extensao}`
+    const caminho = `${entrada.harasId}/${entrada.avaliacaoId}/${nome}`
+
+    const { error: erroUpload } = await supabase.storage
+      .from('morfologia')
+      .upload(caminho, entrada.arquivo, {
+        contentType: entrada.arquivo.type || 'application/octet-stream',
+        upsert: true,
+      })
+    if (erroUpload) throw new Error(erroUpload.message)
+
+    const { data, error } = await supabase.rpc('morfologia_app_registrar', {
+      p_avaliacao: entrada.avaliacaoId,
+      p_papel: entrada.papel,
+      p_caminho: caminho,
+      p_mime: entrada.arquivo.type || 'application/octet-stream',
+      p_bytes: entrada.arquivo.size,
+      p_validacao: entrada.validacao,
+      p_codigos: entrada.codigos,
+      p_observacao: entrada.observacao,
+      p_largura: entrada.largura,
+      p_altura: entrada.altura,
+    })
+    if (error) throw new Error(error.message)
+    return data as RetornoMidia
+  },
+
+  /** Link temporário para um arquivo do balde da morfologia. */
+  async linkMorfologia(caminho: string, segundos = 600): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from('morfologia')
+      .createSignedUrl(caminho, segundos)
+    if (error) throw new Error(error.message)
+    return data.signedUrl
   },
 
   // ---------------------------------------------------------------- export

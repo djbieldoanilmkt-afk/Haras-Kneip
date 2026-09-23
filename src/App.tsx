@@ -24,6 +24,8 @@ const AnimalForm = lazy(() => import('@/pages/AnimalForm'))
 const Calendario = lazy(() => import('@/pages/Calendario'))
 const Financeiro = lazy(() => import('@/pages/Financeiro'))
 const Sanidade = lazy(() => import('@/pages/Sanidade'))
+const Morfologia = lazy(() => import('@/pages/Morfologia'))
+const MorfologiaAvaliacao = lazy(() => import('@/pages/MorfologiaAvaliacao'))
 const Reproducao = lazy(() => import('@/pages/Reproducao'))
 const Relatorios = lazy(() => import('@/pages/Relatorios'))
 const Configuracoes = lazy(() => import('@/pages/Configuracoes'))
@@ -90,6 +92,8 @@ export default function App() {
                 <Route path="/calendario" element={<Calendario />} />
                 <Route path="/sanidade" element={<Sanidade />} />
                 <Route path="/reproducao" element={<Reproducao />} />
+                <Route path="/morfologia" element={<Morfologia />} />
+                <Route path="/morfologia/:id" element={<MorfologiaAvaliacao />} />
                 <Route element={<RequireFinanceiro />}>
                   <Route path="/financeiro" element={<Financeiro />} />
                 </Route>
